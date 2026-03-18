@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plan de Visitas Maxiseguridad</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <section id="loginScreen" class="login-shell">
+        <div class="login-card">
+          <img class="brand-logo login-logo" src="maxiseguridad-logo.png" alt="MAXISEGURIDAD" />
+          <p class="eyebrow">Acceso de Equipo</p>
+          <h1>Ingresar</h1>
+          <p class="login-copy">Cada reunión quedará asociada al usuario logueado.</p>
+          <form id="loginForm" class="login-form">
+            <label>
+              Email
+              <input id="loginEmail" type="email" autocomplete="username" required />
+            </label>
+            <label>
+              Contraseña
+              <input id="loginPassword" type="password" autocomplete="current-password" required />
+            </label>
+            <button id="loginSubmit" class="primary-btn" type="submit">Entrar</button>
+            <span id="loginStatus" aria-live="polite"></span>
+          </form>
+        </div>
+      </section>
+
+      <div id="appContent" class="hidden">
+      <header class="topbar">
+        <div class="brand-block">
+          <img class="brand-logo" src="maxiseguridad-logo.png" alt="MAXISEGURIDAD" />
+          <div>
+            <p class="eyebrow">Gestión Estratégica</p>
+            <h1>Plan de Visitas Maxiseguridad</h1>
+          </div>
+        </div>
+        <div class="topbar-side">
+          <div class="topbar-user">
+            <div class="view-switch">
+              <button id="showClientsBtn" class="secondary-btn" type="button">Clientes</button>
+              <button id="showVisitsBtn" class="secondary-btn" type="button">Visitas</button>
+              <button id="showVisitsGridBtn" class="secondary-btn" type="button">Grilla</button>
+              <button id="showCalendarBtn" class="secondary-btn" type="button">Calendario</button>
+              <button id="showUsersBtn" class="secondary-btn hidden" type="button">Usuarios</button>
+              <button id="showSettingsBtn" class="secondary-btn" type="button">Configuración</button>
+            </div>
+            <span id="currentUserBadge" class="pill"></span>
+            <button id="logoutBtn" class="secondary-btn" type="button">Salir</button>
+          </div>
+          <div class="topbar-kpis" id="globalKpis"></div>
+        </div>
+      </header>
+
+      <main id="listScreen">
+        <section class="toolbar panel">
+          <div class="toolbar-group">
+            <label for="searchInput">Buscar cliente</label>
+            <input id="searchInput" type="search" placeholder="Nombre, sector o ejecutivo..." />
+          </div>
+          <div class="toolbar-group">
+            <label for="riskFilter">Riesgo</label>
+            <select id="riskFilter">
+              <option value="todos">Todos</option>
+              <option value="Bajo">Bajo</option>
+              <option value="Medio">Medio</option>
+              <option value="Alto">Alto</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="segmentFilter">Segmento</label>
+            <select id="segmentFilter">
+              <option value="todos">Todos</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="fixedFireFilter">Inst. Fijas</label>
+            <select id="fixedFireFilter">
+              <option value="todos">Todos</option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="extinguishersFilter">Extintores</label>
+            <select id="extinguishersFilter">
+              <option value="todos">Todos</option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="worksFilter">Obras C.I.</label>
+            <select id="worksFilter">
+              <option value="todos">Todos</option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-title-row">
+            <h2>Plan de visitas</h2>
+            <div class="panel-actions">
+              <button id="addCompanyBtn" class="primary-btn" type="button">+ Nueva compañía</button>
+              <span id="visibleCount" class="pill"></span>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="service-badge sf">Instalaciones Fijas</span>
+            <span class="service-badge se">Extintores</span>
+            <span class="service-badge so">Obras C.I.</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Sector</th>
+                  <th>Ejecutivo</th>
+                  <th>Riesgo</th>
+                  <th>Servicios</th>
+                  <th>Visitas</th>
+                  <th>Próxima reunión</th>
+                </tr>
+              </thead>
+              <tbody id="companyTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <section id="visitsScreen" class="hidden">
+        <section class="toolbar panel visits-toolbar">
+          <div class="toolbar-group">
+            <label for="visitsSearchInput">Buscar visita</label>
+            <input id="visitsSearchInput" type="search" placeholder="Cliente, sucursal, contacto o participantes..." />
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsStatusFilter">Estado</label>
+            <select id="visitsStatusFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsTypeFilter">Tipo</label>
+            <select id="visitsTypeFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsModalityFilter">Modalidad</label>
+            <select id="visitsModalityFilter">
+              <option value="todos">Todas</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Virtual">Virtual</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsExecutiveFilter">Ejecutivo</label>
+            <select id="visitsExecutiveFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsSupervisorFilter">Supervisor</label>
+            <select id="visitsSupervisorFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsParticipantFilter">Participante</label>
+            <select id="visitsParticipantFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsDateFromFilter">Fecha desde</label>
+            <input id="visitsDateFromFilter" type="date" />
+          </div>
+          <div class="toolbar-group">
+            <label for="visitsDateToFilter">Fecha hasta</label>
+            <input id="visitsDateToFilter" type="date" />
+          </div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Visitas</h2>
+              <p class="section-copy">Listado de visitas agendadas, confirmadas y realizadas con sus datos principales.</p>
+            </div>
+            <div class="panel-actions">
+              <button id="exportVisitsBtn" class="secondary-btn" type="button">Exportar Excel</button>
+              <span id="visitsVisibleCount" class="pill"></span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="scheduledFor">Fecha</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="clientName">Cliente</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="scopeLabel">Alcance</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="kindLabel">Tipo</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="modality">Modalidad</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="status">Estado</button></th>
+                  <th><button class="table-sort-btn" type="button" data-sort-key="contactName">Contacto</button></th>
+                </tr>
+              </thead>
+              <tbody id="visitsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="usersScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="detail-top">
+            <button id="backToSettingsBtn" class="back-btn" type="button">← Volver a Configuración</button>
+          </div>
+          <div class="panel-title-row">
+            <div>
+              <h2>Gestión de usuarios y roles</h2>
+              <p class="section-copy">Los usuarios con rol Ejecutivo serán asignables a compañías. Los supervisores se asignan por servicio activo.</p>
+            </div>
+          </div>
+          <form id="userCreateForm" class="company-edit-form">
+            <div class="panel-title-row compact-row">
+              <h3 id="userFormTitle">Nuevo usuario</h3>
+              <button id="cancelUserEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+            </div>
+            <div class="edit-grid">
+              <label>
+                Nombre
+                <input id="newUserName" type="text" required />
+              </label>
+              <label>
+                Email
+                <input id="newUserEmail" type="email" required />
+              </label>
+              <label>
+                Rol
+                <select id="newUserRole" required></select>
+              </label>
+              <label>
+                Contraseña
+                <input id="newUserPassword" type="password" minlength="6" required />
+              </label>
+            </div>
+            <div class="edit-actions">
+              <button id="createUserBtn" class="primary-btn" type="submit">Crear usuario</button>
+              <span id="createUserStatus" aria-live="polite"></span>
+            </div>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="calendarScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="calendar-head">
+            <div>
+              <h2>Calendario de reuniones</h2>
+              <p class="section-copy">Todas las reuniones futuras, agendadas o confirmadas, agrupadas por fecha y coloreadas por tipo de visita.</p>
+            </div>
+            <div class="calendar-controls">
+              <label class="calendar-filter">
+                Participante
+                <select id="calendarParticipantFilter">
+                  <option value="todos">Todos</option>
+                </select>
+              </label>
+              <button id="backToMonthBtn" class="back-btn hidden" type="button">← Volver al mes</button>
+              <button id="prevMonthBtn" class="back-btn" type="button">← Mes anterior</button>
+              <span id="calendarMonthLabel" class="pill"></span>
+              <button id="nextMonthBtn" class="back-btn" type="button">Mes siguiente →</button>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="meeting-type-badge yellow">Comercial</span>
+            <span class="meeting-type-badge orange">Gerencia Comercial</span>
+            <span class="meeting-type-badge blue">Directorio</span>
+            <span class="meeting-type-badge purple">Operaciones</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div id="calendarDayView" class="calendar-day-view hidden"></div>
+        </div>
+      </section>
+
+      <section id="visitsGridScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Grilla de visitas realizadas</h2>
+              <p class="section-copy">Una fila por cliente y una secuencia de visitas realizadas, coloreadas por tipo.</p>
+            </div>
+          </div>
+          <div id="visitsGridLegend" class="legend-row"></div>
+          <div id="visitsGridWrap" class="visits-grid-wrap"></div>
+        </div>
+      </section>
+
+      <section id="settingsScreen" class="hidden">
+        <div class="panel detail-panel settings-shell">
+          <div class="panel-title-row settings-hero">
+            <div>
+              <h2>Configuración</h2>
+              <p class="section-copy">Ordená los catálogos clave del sistema para que el equipo trabaje con opciones consistentes.</p>
+            </div>
+            <div class="panel-actions">
+              <button id="openUsersFromSettingsBtn" class="secondary-btn" type="button">Gestión de usuarios</button>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <p class="settings-kicker">Catálogo</p>
+                  <h3>Sectores de actividad</h3>
+                  <p class="section-copy">Los sectores que después se pueden asignar a compañías y sucursales.</p>
+                </div>
+              </div>
+              <form id="sectorForm" class="company-edit-form settings-form">
+                <div class="edit-grid single-row-grid">
+                  <label class="span-2">
+                    Nuevo sector
+                    <input id="newSectorName" type="text" placeholder="Ej: Energía" required />
+                  </label>
+                </div>
+                <div class="edit-actions">
+                  <button id="createSectorBtn" class="primary-btn" type="submit">Agregar sector</button>
+                  <span id="sectorStatus" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="table-wrap settings-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sector</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sectorsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="settings-card settings-card-wide">
+              <div class="settings-card-head">
+                <div>
+                  <p class="settings-kicker">Agenda</p>
+                  <h3>Tipos de reunión</h3>
+                  <p class="section-copy">Definí la etiqueta visible y el color que se usa en listas, calendario y grilla.</p>
+                </div>
+              </div>
+              <form id="meetingTypeForm" class="company-edit-form settings-form">
+                <div class="panel-title-row compact-row">
+                  <h3 id="meetingTypeFormTitle">Nuevo tipo de reunión</h3>
+                  <button id="cancelMeetingTypeEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                </div>
+                <div class="edit-grid">
+                  <label>
+                    Nombre interno
+                    <input id="meetingTypeValue" type="text" placeholder="Ej: Comercial" required />
+                  </label>
+                  <label>
+                    Etiqueta visible
+                    <input id="meetingTypeLabel" type="text" placeholder="Ej: Visita Comercial" required />
+                  </label>
+                  <label>
+                    Color
+                    <select id="meetingTypeColor" required></select>
+                  </label>
+                </div>
+                <div class="edit-actions">
+                  <button id="saveMeetingTypeBtn" class="primary-btn" type="submit">Guardar tipo</button>
+                  <span id="meetingTypeStatus" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="table-wrap settings-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nombre interno</th>
+                      <th>Etiqueta</th>
+                      <th>Color</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="meetingTypesTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <p class="settings-kicker">Motivos</p>
+                  <h3>Motivos de reunión</h3>
+                  <p class="section-copy">Opciones rápidas para mantener homogénea la carga comercial.</p>
+                </div>
+              </div>
+              <form id="meetingReasonForm" class="company-edit-form settings-form">
+                <div class="panel-title-row compact-row">
+                  <h3 id="meetingReasonFormTitle">Nuevo motivo de reunión</h3>
+                  <button id="cancelMeetingReasonEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                </div>
+                <div class="edit-grid single-row-grid">
+                  <label class="span-2">
+                    Motivo
+                    <input id="meetingReasonName" type="text" placeholder="Ej: Acercamiento al cliente" required />
+                  </label>
+                </div>
+                <div class="edit-actions">
+                  <button id="saveMeetingReasonBtn" class="primary-btn" type="submit">Guardar motivo</button>
+                  <span id="meetingReasonStatus" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="table-wrap settings-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Motivo</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="meetingReasonsTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="detailScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="detail-top">
+            <button id="backToList" class="back-btn" type="button">← Volver al listado</button>
+            <div class="detail-top-actions">
+              <button id="goToMeetingBtn" class="primary-btn" type="button">Agendar nueva reunión</button>
+              <button id="goToEditBtn" class="secondary-btn" type="button">Editar compañía</button>
+            </div>
+          </div>
+          <div id="companyDetails">
+            <div class="panel-title-row">
+              <div>
+                <h2 id="detailCompanyName"></h2>
+                <p id="detailMeta"></p>
+              </div>
+              <span class="pill" id="detailSegment"></span>
+            </div>
+            <div id="detailServices" class="service-row"></div>
+            <div class="kpi-grid" id="detailKpis"></div>
+
+            <div class="section-head section-head-featured meetings-head">
+              <div>
+                <span class="section-icon-badge" aria-hidden="true">Agenda</span>
+                <h3 class="section-title section-title-featured">Historial de reuniones</h3>
+                <p class="section-copy">Cada reunión queda acumulada y visible para todo el equipo.</p>
+              </div>
+            </div>
+            <div id="meetingList" class="meeting-list"></div>
+
+            <div class="section-head section-head-featured branches-head">
+              <div>
+                <span class="section-icon-badge" aria-hidden="true">Red</span>
+                <h3 class="section-title section-title-featured">Sucursales</h3>
+                <p class="section-copy">Cada sucursal puede tener su propio ejecutivo, servicios activos y supervisores asignados.</p>
+              </div>
+              <button id="addBranchBtn" class="secondary-btn" type="button">+ Nueva sucursal</button>
+            </div>
+            <div id="branchList" class="meeting-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="meetingScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="detail-top">
+            <button id="backFromMeeting" class="back-btn" type="button">← Volver</button>
+          </div>
+          <div class="panel-title-row">
+            <div>
+              <h2 id="meetingScreenTitle">Nueva reunión</h2>
+              <p id="meetingScreenMeta"></p>
+            </div>
+            <div class="panel-actions">
+              <button id="editMeetingFromDetailBtn" class="secondary-btn hidden" type="button">Editar reunión</button>
+            </div>
+          </div>
+          <div id="meetingDetailView" class="hidden"></div>
+          <form id="meetingForm" class="company-edit-form">
+            <div class="edit-grid">
+              <label>
+                Tipo de visita
+                <select id="meetingKind" required></select>
+              </label>
+              <label>
+                Motivo de la reunión
+                <select id="meetingSubject" required></select>
+              </label>
+              <label>
+                Objetivo
+                <input id="meetingObjective" type="text" required />
+              </label>
+              <label>
+                Fecha
+                <input id="meetingDate" type="date" required />
+              </label>
+              <label>
+                Modalidad
+                <select id="meetingModality" required></select>
+              </label>
+              <label>
+                Alcance
+                <select id="meetingScope" required></select>
+              </label>
+              <label class="span-2">
+                Participantes
+                <details id="meetingParticipantsPicker" class="multi-select">
+                  <summary id="meetingParticipantsSummary">Seleccionar participantes</summary>
+                  <input id="meetingParticipantsSearch" type="search" placeholder="Buscar usuarios..." />
+                  <div id="meetingParticipantsList" class="multi-select-list"></div>
+                </details>
+              </label>
+              <label>
+                Contacto
+                <input id="meetingContactName" type="text" placeholder="Nombre de la persona" required />
+              </label>
+              <label>
+                Función del contacto
+                <input id="meetingContactRole" type="text" placeholder="Ej: Gerente de Planta" required />
+              </label>
+              <label>
+                Estado
+                <select id="meetingStatusSelect" required></select>
+              </label>
+              <label id="meetingNextDateGroup" class="hidden">
+                Próxima reunión
+                <input id="meetingNextDate" type="date" />
+              </label>
+            </div>
+            <label>
+              Minuta
+              <textarea id="meetingMinutes" rows="5" placeholder="Resumen, acuerdos y temas tratados"></textarea>
+            </label>
+            <label>
+              Status de negociaciones activas
+              <textarea id="meetingNegotiationStatus" rows="4" placeholder="Estado actual de las negociaciones en curso"></textarea>
+            </label>
+            <label>
+              Oportunidades
+              <textarea id="meetingOpportunities" rows="4" placeholder="Servicios? Obras? Para cuando?"></textarea>
+            </label>
+            <label>
+              Recupero de Sustitutos
+              <textarea id="meetingSubstituteRecovery" rows="4" placeholder="Estado del recupero de sustitutos"></textarea>
+            </label>
+            <label id="meetingGlobalContactsGroup" class="hidden">
+              Contactos Global
+              <textarea id="meetingGlobalContacts" rows="4" placeholder="Contactos globales y vínculos relevantes"></textarea>
+            </label>
+            <label id="meetingServiceStatusGroup" class="hidden">
+              Status sobre el servicio
+              <textarea id="meetingServiceStatus" rows="4" placeholder="Situación actual del servicio, desvíos y feedback"></textarea>
+            </label>
+            <div class="edit-actions">
+              <button id="saveMeetingBtn" class="primary-btn" type="submit">Guardar reunión</button>
+              <span id="meetingStatus" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="editScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="detail-top">
+            <button id="backFromEdit" class="back-btn" type="button">← Volver</button>
+          </div>
+          <div class="panel-title-row">
+            <h2 id="editScreenTitle">Editar compañía</h2>
+          </div>
+          <form id="companyEditForm" class="company-edit-form">
+            <div class="edit-grid">
+              <label>
+                Nombre
+                <input id="editName" type="text" required />
+              </label>
+              <label>
+                Sector
+                <select id="editSector" required></select>
+              </label>
+              <label id="editCompanyTypeGroup">
+                Tipo de compañía
+                <select id="editCompanyType" required>
+                  <option value="Local">Local</option>
+                  <option value="Global">Global</option>
+                </select>
+              </label>
+              <label id="editCountryGroup">
+                País
+                <select id="editCountry" required>
+                  <option value="Argentina">Argentina</option>
+                  <option value="Bolivia">Bolivia</option>
+                  <option value="Mexico">Mexico</option>
+                </select>
+              </label>
+              <label id="editAccountStageGroup">
+                Estado de la compañía
+                <select id="editAccountStage" required>
+                  <option value="Activa">Activa</option>
+                  <option value="Prospecto">Prospecto</option>
+                </select>
+              </label>
+              <label>
+                Ejecutivo
+                <select id="editManager" required></select>
+              </label>
+              <label>
+                Riesgo
+                <select id="editRisk" required>
+                  <option value="Bajo">Bajo</option>
+                  <option value="Medio">Medio</option>
+                  <option value="Alto">Alto</option>
+                </select>
+              </label>
+              <label>
+                Segmento
+                <select id="editSegment" required>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+              </label>
+            </div>
+            <div class="kpi-grid" id="accountRolesGrid"></div>
+            <div class="edit-services">
+              <label><input id="editFixedFire" type="checkbox" /> Instalaciones Fijas</label>
+              <label><input id="editExtinguishers" type="checkbox" /> Extintores</label>
+              <label><input id="editWorks" type="checkbox" /> Obras C.I.</label>
+            </div>
+            <div class="edit-grid">
+              <label id="fixedFireSupervisorGroup" class="hidden">
+                Supervisor IFCI
+                <select id="editSupervisorFixedFire"></select>
+              </label>
+              <label id="extinguishersSupervisorGroup" class="hidden">
+                Supervisor EXT
+                <select id="editSupervisorExtinguishers"></select>
+              </label>
+              <label id="worksSupervisorGroup" class="hidden">
+                Supervisor Obra
+                <select id="editSupervisorWorks"></select>
+              </label>
+            </div>
+            <label>
+              Notas
+              <textarea id="editNotes" rows="3" placeholder="Notas internas"></textarea>
+            </label>
+            <div class="edit-actions">
+              <button id="saveCompanyBtn" class="primary-btn" type="submit">Guardar cambios</button>
+              <button id="hideCompanyBtn" class="ghost-btn hidden" type="button">Ocultar compañía</button>
+              <span id="editCompanyStatus" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
+      </section>
+      </div>
+    </div>
+
+    <template id="meetingCardTemplate">
+      <article class="meeting-card">
+        <div class="meeting-head">
+          <div>
+            <p class="meeting-date"></p>
+            <h4 class="meeting-title"></h4>
+          </div>
+          <div class="meeting-head-actions">
+            <span class="meeting-kind-badge"></span>
+            <span class="meeting-status-badge"></span>
+            <button class="ghost-btn edit-meeting-btn" type="button">Editar</button>
+          </div>
+        </div>
+        <div class="meeting-meta"></div>
+        <div class="meeting-body">
+          <div>
+            <h5>Objetivo</h5>
+            <p class="meeting-objective"></p>
+          </div>
+          <div>
+            <h5>Minuta</h5>
+            <p class="meeting-minutes"></p>
+          </div>
+          <div>
+            <h5>Status de negociaciones activas</h5>
+            <p class="meeting-findings"></p>
+          </div>
+          <div>
+            <h5>Oportunidades</h5>
+            <p class="meeting-opportunities"></p>
+          </div>
+          <div>
+            <h5>Recupero de Sustitutos</h5>
+            <p class="meeting-substitute-recovery"></p>
+          </div>
+          <div class="meeting-global-contacts-block hidden">
+            <h5>Contactos Global</h5>
+            <p class="meeting-global-contacts"></p>
+          </div>
+          <div class="meeting-service-status-block hidden">
+            <h5>Status sobre el servicio</h5>
+            <p class="meeting-service-status"></p>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

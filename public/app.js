@@ -1,0 +1,2662 @@
+const SERVICE_TYPES = [
+  { key: "fixedFire", label: "Instalaciones Fijas", short: "IF", css: "sf" },
+  { key: "extinguishers", label: "Extintores", short: "EX", css: "se" },
+  { key: "works", label: "Obras C.I.", short: "OB", css: "so" }
+];
+
+const MEETING_COLOR_OPTIONS = [
+  { value: "yellow", label: "Amarillo" },
+  { value: "orange", label: "Naranja" },
+  { value: "blue", label: "Azul" },
+  { value: "purple", label: "Violeta" },
+  { value: "green", label: "Verde" },
+  { value: "red", label: "Rojo" }
+];
+
+const loginScreen = document.getElementById("loginScreen");
+const appContent = document.getElementById("appContent");
+const loginForm = document.getElementById("loginForm");
+const loginEmail = document.getElementById("loginEmail");
+const loginPassword = document.getElementById("loginPassword");
+const loginSubmit = document.getElementById("loginSubmit");
+const loginStatus = document.getElementById("loginStatus");
+const currentUserBadge = document.getElementById("currentUserBadge");
+const logoutBtn = document.getElementById("logoutBtn");
+const showClientsBtn = document.getElementById("showClientsBtn");
+const showVisitsBtn = document.getElementById("showVisitsBtn");
+const showVisitsGridBtn = document.getElementById("showVisitsGridBtn");
+const showCalendarBtn = document.getElementById("showCalendarBtn");
+const showUsersBtn = document.getElementById("showUsersBtn");
+const showSettingsBtn = document.getElementById("showSettingsBtn");
+const openUsersFromSettingsBtn = document.getElementById("openUsersFromSettingsBtn");
+const backToSettingsBtn = document.getElementById("backToSettingsBtn");
+
+const tableBody = document.getElementById("companyTableBody");
+const searchInput = document.getElementById("searchInput");
+const riskFilter = document.getElementById("riskFilter");
+const segmentFilter = document.getElementById("segmentFilter");
+const fixedFireFilter = document.getElementById("fixedFireFilter");
+const extinguishersFilter = document.getElementById("extinguishersFilter");
+const worksFilter = document.getElementById("worksFilter");
+const visibleCount = document.getElementById("visibleCount");
+const globalKpis = document.getElementById("globalKpis");
+const addCompanyBtn = document.getElementById("addCompanyBtn");
+const usersTableBody = document.getElementById("usersTableBody");
+const userCreateForm = document.getElementById("userCreateForm");
+const newUserName = document.getElementById("newUserName");
+const newUserEmail = document.getElementById("newUserEmail");
+const newUserRole = document.getElementById("newUserRole");
+const newUserPassword = document.getElementById("newUserPassword");
+const createUserBtn = document.getElementById("createUserBtn");
+const createUserStatus = document.getElementById("createUserStatus");
+const userFormTitle = document.getElementById("userFormTitle");
+const cancelUserEditBtn = document.getElementById("cancelUserEditBtn");
+const sectorForm = document.getElementById("sectorForm");
+const newSectorName = document.getElementById("newSectorName");
+const createSectorBtn = document.getElementById("createSectorBtn");
+const sectorStatus = document.getElementById("sectorStatus");
+const sectorsTableBody = document.getElementById("sectorsTableBody");
+const meetingTypeForm = document.getElementById("meetingTypeForm");
+const meetingTypeValue = document.getElementById("meetingTypeValue");
+const meetingTypeLabel = document.getElementById("meetingTypeLabel");
+const meetingTypeColor = document.getElementById("meetingTypeColor");
+const meetingTypeFormTitle = document.getElementById("meetingTypeFormTitle");
+const saveMeetingTypeBtn = document.getElementById("saveMeetingTypeBtn");
+const cancelMeetingTypeEditBtn = document.getElementById("cancelMeetingTypeEditBtn");
+const meetingTypeStatus = document.getElementById("meetingTypeStatus");
+const meetingTypesTableBody = document.getElementById("meetingTypesTableBody");
+const meetingReasonForm = document.getElementById("meetingReasonForm");
+const meetingReasonName = document.getElementById("meetingReasonName");
+const meetingReasonFormTitle = document.getElementById("meetingReasonFormTitle");
+const saveMeetingReasonBtn = document.getElementById("saveMeetingReasonBtn");
+const cancelMeetingReasonEditBtn = document.getElementById("cancelMeetingReasonEditBtn");
+const meetingReasonStatus = document.getElementById("meetingReasonStatus");
+const meetingReasonsTableBody = document.getElementById("meetingReasonsTableBody");
+const visitsTableBody = document.getElementById("visitsTableBody");
+const visitsVisibleCount = document.getElementById("visitsVisibleCount");
+const visitsSearchInput = document.getElementById("visitsSearchInput");
+const visitsStatusFilter = document.getElementById("visitsStatusFilter");
+const visitsTypeFilter = document.getElementById("visitsTypeFilter");
+const visitsModalityFilter = document.getElementById("visitsModalityFilter");
+const visitsExecutiveFilter = document.getElementById("visitsExecutiveFilter");
+const visitsSupervisorFilter = document.getElementById("visitsSupervisorFilter");
+const visitsParticipantFilter = document.getElementById("visitsParticipantFilter");
+const visitsDateFromFilter = document.getElementById("visitsDateFromFilter");
+const visitsDateToFilter = document.getElementById("visitsDateToFilter");
+const exportVisitsBtn = document.getElementById("exportVisitsBtn");
+
+const listScreen = document.getElementById("listScreen");
+const visitsScreen = document.getElementById("visitsScreen");
+const detailScreen = document.getElementById("detailScreen");
+const editScreen = document.getElementById("editScreen");
+const meetingScreen = document.getElementById("meetingScreen");
+const calendarScreen = document.getElementById("calendarScreen");
+const visitsGridScreen = document.getElementById("visitsGridScreen");
+const usersScreen = document.getElementById("usersScreen");
+const settingsScreen = document.getElementById("settingsScreen");
+const visitsGridWrap = document.getElementById("visitsGridWrap");
+const visitsGridLegend = document.getElementById("visitsGridLegend");
+
+const backToList = document.getElementById("backToList");
+const backFromEdit = document.getElementById("backFromEdit");
+const backFromMeeting = document.getElementById("backFromMeeting");
+const goToEditBtn = document.getElementById("goToEditBtn");
+const goToMeetingBtn = document.getElementById("goToMeetingBtn");
+
+const detailCompanyName = document.getElementById("detailCompanyName");
+const detailMeta = document.getElementById("detailMeta");
+const detailSegment = document.getElementById("detailSegment");
+const detailKpis = document.getElementById("detailKpis");
+const detailServices = document.getElementById("detailServices");
+const meetingList = document.getElementById("meetingList");
+const branchList = document.getElementById("branchList");
+const meetingCardTemplate = document.getElementById("meetingCardTemplate");
+
+const calendarGrid = document.getElementById("calendarGrid");
+const calendarDayView = document.getElementById("calendarDayView");
+const calendarMonthLabel = document.getElementById("calendarMonthLabel");
+const prevMonthBtn = document.getElementById("prevMonthBtn");
+const nextMonthBtn = document.getElementById("nextMonthBtn");
+const backToMonthBtn = document.getElementById("backToMonthBtn");
+const calendarParticipantFilter = document.getElementById("calendarParticipantFilter");
+
+const editScreenTitle = document.getElementById("editScreenTitle");
+const companyEditForm = document.getElementById("companyEditForm");
+const editName = document.getElementById("editName");
+const editSector = document.getElementById("editSector");
+const editCompanyType = document.getElementById("editCompanyType");
+const editCountry = document.getElementById("editCountry");
+const editAccountStage = document.getElementById("editAccountStage");
+const editManager = document.getElementById("editManager");
+const editRisk = document.getElementById("editRisk");
+const editSegment = document.getElementById("editSegment");
+const accountRolesGrid = document.getElementById("accountRolesGrid");
+const editFixedFire = document.getElementById("editFixedFire");
+const editExtinguishers = document.getElementById("editExtinguishers");
+const editWorks = document.getElementById("editWorks");
+const fixedFireSupervisorGroup = document.getElementById("fixedFireSupervisorGroup");
+const extinguishersSupervisorGroup = document.getElementById("extinguishersSupervisorGroup");
+const worksSupervisorGroup = document.getElementById("worksSupervisorGroup");
+const editSupervisorFixedFire = document.getElementById("editSupervisorFixedFire");
+const editSupervisorExtinguishers = document.getElementById("editSupervisorExtinguishers");
+const editSupervisorWorks = document.getElementById("editSupervisorWorks");
+const editNotes = document.getElementById("editNotes");
+const saveCompanyBtn = document.getElementById("saveCompanyBtn");
+const hideCompanyBtn = document.getElementById("hideCompanyBtn");
+const editCompanyStatus = document.getElementById("editCompanyStatus");
+const addBranchBtn = document.getElementById("addBranchBtn");
+
+const meetingScreenTitle = document.getElementById("meetingScreenTitle");
+const meetingScreenMeta = document.getElementById("meetingScreenMeta");
+const meetingForm = document.getElementById("meetingForm");
+const meetingKind = document.getElementById("meetingKind");
+const meetingSubject = document.getElementById("meetingSubject");
+const meetingObjective = document.getElementById("meetingObjective");
+const meetingDate = document.getElementById("meetingDate");
+const meetingModality = document.getElementById("meetingModality");
+const meetingScope = document.getElementById("meetingScope");
+const meetingParticipantsPicker = document.getElementById("meetingParticipantsPicker");
+const meetingParticipantsSummary = document.getElementById("meetingParticipantsSummary");
+const meetingParticipantsSearch = document.getElementById("meetingParticipantsSearch");
+const meetingParticipantsList = document.getElementById("meetingParticipantsList");
+const meetingContactName = document.getElementById("meetingContactName");
+const meetingContactRole = document.getElementById("meetingContactRole");
+const meetingStatusSelect = document.getElementById("meetingStatusSelect");
+const meetingNextDateGroup = document.getElementById("meetingNextDateGroup");
+const meetingNextDate = document.getElementById("meetingNextDate");
+const meetingMinutes = document.getElementById("meetingMinutes");
+const meetingNegotiationStatus = document.getElementById("meetingNegotiationStatus");
+const meetingOpportunities = document.getElementById("meetingOpportunities");
+const meetingSubstituteRecovery = document.getElementById("meetingSubstituteRecovery");
+const meetingGlobalContactsGroup = document.getElementById("meetingGlobalContactsGroup");
+const meetingGlobalContacts = document.getElementById("meetingGlobalContacts");
+const meetingServiceStatusGroup = document.getElementById("meetingServiceStatusGroup");
+const meetingServiceStatus = document.getElementById("meetingServiceStatus");
+const saveMeetingBtn = document.getElementById("saveMeetingBtn");
+const meetingStatus = document.getElementById("meetingStatus");
+const meetingDetailView = document.getElementById("meetingDetailView");
+const editMeetingFromDetailBtn = document.getElementById("editMeetingFromDetailBtn");
+
+let clients = [];
+let selectedId = null;
+let selectedClient = null;
+let selectedBranchView = null;
+let currentUser = null;
+let editMode = "edit";
+let editEntityType = "client";
+let meetingMode = "create";
+let meetingScreenMode = "form";
+let editingMeetingId = null;
+let editingBranchId = null;
+let searchTimer = null;
+let meetingTypes = [];
+let meetingReasons = [];
+let meetingStatuses = [];
+let meetingModalities = [];
+let editingMeetingTypeId = null;
+let editingMeetingReasonId = null;
+let calendarMeetings = [];
+let calendarDate = new Date();
+let calendarView = "month";
+let selectedCalendarDay = null;
+let suppressHashRouting = false;
+let users = [];
+let userRoles = [];
+let userFormMode = "create";
+let editingUserId = null;
+let sectorOptions = [];
+let visits = [];
+let visitsGridData = [];
+let visitsSearchTimer = null;
+let visitsSort = {
+  key: "scheduledFor",
+  direction: "desc"
+};
+let selectedParticipantUserIds = [];
+let assignmentOptions = {
+  allUsers: [],
+  executives: [],
+  supervisors: {
+    fixedFire: [],
+    extinguishers: [],
+    works: []
+  }
+};
+
+function notifyError(message) {
+  window.alert(message);
+}
+
+function updateAuthUi() {
+  const loggedIn = !!currentUser;
+  loginScreen.classList.toggle("hidden", loggedIn);
+  appContent.classList.toggle("hidden", !loggedIn);
+  currentUserBadge.innerHTML = loggedIn
+    ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
+    : "";
+}
+
+function parseNumericInput(input, { integer = false, min = null, max = null } = {}) {
+  const raw = String(input?.value ?? "").trim();
+  if (!raw) return { ok: false };
+
+  const normalized = raw.replace(",", ".");
+  const value = Number(normalized);
+  if (!Number.isFinite(value)) return { ok: false };
+  if (integer && !Number.isInteger(value)) return { ok: false };
+  if (min !== null && value < min) return { ok: false };
+  if (max !== null && value > max) return { ok: false };
+
+  return { ok: true, value };
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return "Sin fecha";
+  const date = new Date(`${dateValue}T00:00:00`);
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+}
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date) {
+  return new Intl.DateTimeFormat("es-AR", {
+    month: "long",
+    year: "numeric"
+  }).format(date);
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function fullDateLabel(dateValue) {
+  if (!dateValue) return "";
+  const date = new Date(`${dateValue}T00:00:00`);
+  return new Intl.DateTimeFormat("es-AR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  }).format(date);
+}
+
+function getMeetingTypeMeta(kind) {
+  return meetingTypes.find((type) => type.value === kind) || {
+    value: kind,
+    label: kind,
+    color: "yellow"
+  };
+}
+
+function getMeetingColorLabel(colorValue) {
+  return MEETING_COLOR_OPTIONS.find((option) => option.value === colorValue)?.label || colorValue;
+}
+
+function normalizeParticipantIds(ids) {
+  return [...new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+}
+
+function getParticipantUsers() {
+  return assignmentOptions.allUsers || [];
+}
+
+function getParticipantNamesFromIds(ids) {
+  const selectedIds = new Set(normalizeParticipantIds(ids));
+  return getParticipantUsers()
+    .filter((user) => selectedIds.has(Number(user.id)))
+    .map((user) => user.name);
+}
+
+function setSelectedParticipantUserIds(ids) {
+  selectedParticipantUserIds = normalizeParticipantIds(ids);
+  const selectedNames = getParticipantNamesFromIds(selectedParticipantUserIds);
+  meetingParticipantsSummary.textContent = selectedNames.length ? selectedNames.join(", ") : "Seleccionar participantes";
+}
+
+function renderMeetingParticipantsPicker() {
+  const searchTerm = (meetingParticipantsSearch.value || "").trim().toLowerCase();
+  const selectedIds = new Set(selectedParticipantUserIds);
+  const matchingUsers = getParticipantUsers().filter((user) => {
+    if (!searchTerm) return true;
+    return (
+      user.name.toLowerCase().includes(searchTerm) ||
+      String(user.email || "").toLowerCase().includes(searchTerm) ||
+      String(user.role || "").toLowerCase().includes(searchTerm)
+    );
+  });
+
+  if (!matchingUsers.length) {
+    meetingParticipantsList.innerHTML = '<div class="multi-select-empty">No hay usuarios que coincidan con la búsqueda.</div>';
+    return;
+  }
+
+  meetingParticipantsList.innerHTML = matchingUsers
+    .map(
+      (user) => `
+        <label class="multi-select-option">
+          <input type="checkbox" value="${user.id}" ${selectedIds.has(Number(user.id)) ? "checked" : ""} />
+          <span>
+            <strong>${user.name}</strong>
+            <small>${user.role}</small>
+          </span>
+        </label>
+      `
+    )
+    .join("");
+
+  meetingParticipantsList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const nextIds = new Set(selectedParticipantUserIds);
+      const userId = Number(checkbox.value);
+      if (checkbox.checked) nextIds.add(userId);
+      else nextIds.delete(userId);
+      setSelectedParticipantUserIds([...nextIds]);
+      renderMeetingParticipantsPicker();
+    });
+  });
+}
+
+function getCalendarStatusClass(status) {
+  if (status === "Realizada") return "calendar-status-completed";
+  if (status === "Confirmada") return "calendar-status-confirmed";
+  return "calendar-status-scheduled";
+}
+
+function renderMeetingTypeColorOptions() {
+  const currentColor = meetingTypeColor.value || "yellow";
+  meetingTypeColor.innerHTML = MEETING_COLOR_OPTIONS
+    .map((option) => `<option value="${option.value}">${option.label}</option>`)
+    .join("");
+  meetingTypeColor.value = MEETING_COLOR_OPTIONS.some((option) => option.value === currentColor) ? currentColor : "yellow";
+}
+
+function renderTypeSelectOptions() {
+  const currentVisitType = visitsTypeFilter.value;
+  const currentVisitStatus = visitsStatusFilter.value;
+  meetingKind.innerHTML = meetingTypes
+    .map((type) => `<option value="${type.value}">${type.label}</option>`)
+    .join("");
+
+  const currentSubject = meetingSubject.value;
+  meetingSubject.innerHTML = meetingReasons
+    .map((reason) => {
+      const name = typeof reason === "string" ? reason : reason.name;
+      return `<option value="${name}">${name}</option>`;
+    })
+    .join("");
+  if (currentSubject && meetingReasons.some((reason) => (typeof reason === "string" ? reason : reason.name) === currentSubject)) {
+    meetingSubject.value = currentSubject;
+  }
+
+  meetingStatusSelect.innerHTML = meetingStatuses
+    .map((status) => `<option value="${status}">${status}</option>`)
+    .join("");
+
+  meetingModality.innerHTML = meetingModalities
+    .map((modality) => `<option value="${modality}">${modality}</option>`)
+    .join("");
+
+  visitsTypeFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(meetingTypes.map((type) => `<option value="${type.value}">${type.label}</option>`))
+    .join("");
+
+  visitsStatusFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(meetingStatuses.map((status) => `<option value="${status}">${status}</option>`))
+    .join("");
+
+  visitsTypeFilter.value = currentVisitType || "todos";
+  visitsStatusFilter.value = currentVisitStatus || "todos";
+}
+
+function getMeetingScopeEntity() {
+  if (!selectedClient) return null;
+  if (meetingScope.value.startsWith("branch:")) {
+    const branchId = Number(meetingScope.value.split(":")[1]);
+    return selectedClient.branches?.find((branch) => Number(branch.id) === branchId) || null;
+  }
+  return selectedBranchView || selectedClient;
+}
+
+function syncMeetingContextBlocks() {
+  const scopeEntity = getMeetingScopeEntity();
+  const isGlobalCompany = selectedClient?.companyType === "Global";
+  const hasActiveServices =
+    selectedClient?.accountStage !== "Prospecto" &&
+    !!scopeEntity &&
+    Object.values(scopeEntity.services || {}).some(Boolean);
+
+  meetingGlobalContactsGroup.classList.toggle("hidden", !isGlobalCompany);
+  meetingServiceStatusGroup.classList.toggle("hidden", !hasActiveServices);
+
+  if (!isGlobalCompany) meetingGlobalContacts.value = "";
+  if (!hasActiveServices) meetingServiceStatus.value = "";
+}
+
+function resetMeetingTypeForm() {
+  editingMeetingTypeId = null;
+  meetingTypeFormTitle.textContent = "Nuevo tipo de reunión";
+  saveMeetingTypeBtn.textContent = "Guardar tipo";
+  cancelMeetingTypeEditBtn.classList.add("hidden");
+  meetingTypeValue.value = "";
+  meetingTypeLabel.value = "";
+  meetingTypeColor.value = "yellow";
+  meetingTypeStatus.textContent = "";
+}
+
+function resetMeetingReasonForm() {
+  editingMeetingReasonId = null;
+  meetingReasonFormTitle.textContent = "Nuevo motivo de reunión";
+  saveMeetingReasonBtn.textContent = "Guardar motivo";
+  cancelMeetingReasonEditBtn.classList.add("hidden");
+  meetingReasonName.value = "";
+  meetingReasonStatus.textContent = "";
+}
+
+function renderMeetingTypesConfig() {
+  meetingTypesTableBody.innerHTML = "";
+
+  meetingTypes.forEach((type) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${type.value}</b></td>
+      <td>${type.label}</td>
+      <td><span class="meeting-type-badge ${type.color}">${getMeetingColorLabel(type.color)}</span></td>
+      <td>
+        <div class="table-actions">
+          <button class="secondary-btn edit-meeting-type-btn" type="button">Editar</button>
+          <button class="ghost-btn delete-meeting-type-btn" type="button">Eliminar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".edit-meeting-type-btn").addEventListener("click", () => {
+      editingMeetingTypeId = type.id;
+      meetingTypeFormTitle.textContent = `Editar tipo · ${type.label}`;
+      saveMeetingTypeBtn.textContent = "Guardar cambios";
+      cancelMeetingTypeEditBtn.classList.remove("hidden");
+      meetingTypeValue.value = type.value;
+      meetingTypeLabel.value = type.label;
+      meetingTypeColor.value = type.color;
+      meetingTypeStatus.textContent = "";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    row.querySelector(".delete-meeting-type-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a eliminar el tipo de reunión ${type.label}.`);
+      if (!confirmed) return;
+
+      try {
+        await deleteMeetingType(type.id);
+        await loadMeetingTypesConfig();
+        resetMeetingTypeForm();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+
+    meetingTypesTableBody.appendChild(row);
+  });
+}
+
+function renderMeetingReasonsConfig() {
+  meetingReasonsTableBody.innerHTML = "";
+
+  meetingReasons.forEach((reason) => {
+    const reasonName = typeof reason === "string" ? reason : reason.name;
+    const reasonId = typeof reason === "string" ? null : reason.id;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${reasonName}</b></td>
+      <td>
+        <div class="table-actions">
+          <button class="secondary-btn edit-meeting-reason-btn" type="button">Editar</button>
+          <button class="ghost-btn delete-meeting-reason-btn" type="button">Eliminar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".edit-meeting-reason-btn").addEventListener("click", () => {
+      editingMeetingReasonId = reasonId;
+      meetingReasonFormTitle.textContent = `Editar motivo · ${reasonName}`;
+      saveMeetingReasonBtn.textContent = "Guardar cambios";
+      cancelMeetingReasonEditBtn.classList.remove("hidden");
+      meetingReasonName.value = reasonName;
+      meetingReasonStatus.textContent = "";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    row.querySelector(".delete-meeting-reason-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a eliminar el motivo ${reasonName}.`);
+      if (!confirmed) return;
+
+      try {
+        await deleteMeetingReason(reasonId);
+        await loadMeetingReasonsConfig();
+        resetMeetingReasonForm();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+
+    meetingReasonsTableBody.appendChild(row);
+  });
+}
+
+function renderVisitsResponsibleFilters() {
+  const currentExecutive = visitsExecutiveFilter.value;
+  const currentSupervisor = visitsSupervisorFilter.value;
+  const currentParticipant = visitsParticipantFilter.value;
+  const currentCalendarParticipant = calendarParticipantFilter.value;
+  visitsExecutiveFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(
+      assignmentOptions.executives.map((user) => `<option value="${user.id}">${user.name}</option>`)
+    )
+    .join("");
+
+  const supervisors = [
+    ...assignmentOptions.supervisors.fixedFire,
+    ...assignmentOptions.supervisors.extinguishers,
+    ...assignmentOptions.supervisors.works
+  ].filter((user, index, array) => array.findIndex((candidate) => Number(candidate.id) === Number(user.id)) === index);
+
+  visitsSupervisorFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(supervisors.map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
+  visitsParticipantFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(getParticipantUsers().map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
+  calendarParticipantFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(getParticipantUsers().map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
+  visitsExecutiveFilter.value = currentExecutive || "todos";
+  visitsSupervisorFilter.value = currentSupervisor || "todos";
+  visitsParticipantFilter.value = currentParticipant || "todos";
+  calendarParticipantFilter.value = currentCalendarParticipant || "todos";
+}
+
+function syncMeetingCompletionFields() {
+  const isCompleted = meetingStatusSelect.value === "Realizada";
+  meetingNextDateGroup.classList.toggle("hidden", !isCompleted);
+  meetingNextDate.required = false;
+  if (!isCompleted) {
+    meetingNextDate.value = "";
+  }
+}
+
+function renderServices(company, compact = false) {
+  return SERVICE_TYPES.filter((service) => company.services[service.key])
+    .map(
+      (service) =>
+        `<span class="service-badge ${service.css}">${compact ? service.short : service.label}</span>`
+    )
+    .join("");
+}
+
+function renderMeetingDots(dots) {
+  if (!dots?.length) return '<span class="muted-inline">-</span>';
+  return dots
+    .map(
+      (dot, index) =>
+        `<span class="meeting-dot ${dot.color}" title="${dot.kind} ${index + 1}"></span>`
+    )
+    .join("");
+}
+
+function renderUserRoleOptions(selectedRole) {
+  return userRoles
+    .map((role) => `<option value="${role}" ${role === selectedRole ? "selected" : ""}>${role}</option>`)
+    .join("");
+}
+
+function renderUserSelect(select, options, selectedId, placeholder) {
+  const normalizedSelectedId = selectedId ? Number(selectedId) : null;
+  select.innerHTML = [`<option value="">${placeholder}</option>`]
+    .concat(
+      options.map(
+        (user) =>
+          `<option value="${user.id}" ${normalizedSelectedId === Number(user.id) ? "selected" : ""}>${user.name}</option>`
+      )
+    )
+    .join("");
+}
+
+function renderSectorSelect(selectedSector = "") {
+  editSector.innerHTML = [
+    '<option value="">Seleccionar sector</option>',
+    ...sectorOptions.map(
+      (sector) =>
+        `<option value="${sector.name}" ${sector.name === selectedSector ? "selected" : ""}>${sector.name}</option>`
+    )
+  ].join("");
+}
+
+function renderSectors() {
+  sectorsTableBody.innerHTML = "";
+
+  sectorOptions.forEach((sector) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${sector.name}</b></td>
+      <td>
+        <div class="table-actions">
+          <button class="ghost-btn delete-sector-btn" type="button">Eliminar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".delete-sector-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a eliminar el sector ${sector.name}.`);
+      if (!confirmed) return;
+
+      try {
+        await deleteSector(sector.id);
+        sectorStatus.textContent = "Sector eliminado";
+        await loadSectorOptions();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+
+    sectorsTableBody.appendChild(row);
+  });
+}
+
+function syncSupervisorVisibility() {
+  fixedFireSupervisorGroup.classList.toggle("hidden", !editFixedFire.checked);
+  extinguishersSupervisorGroup.classList.toggle("hidden", !editExtinguishers.checked);
+  worksSupervisorGroup.classList.toggle("hidden", !editWorks.checked);
+  editSupervisorFixedFire.disabled = !editFixedFire.checked;
+  editSupervisorExtinguishers.disabled = !editExtinguishers.checked;
+  editSupervisorWorks.disabled = !editWorks.checked;
+  editSupervisorFixedFire.required = editFixedFire.checked;
+  editSupervisorExtinguishers.required = editExtinguishers.checked;
+  editSupervisorWorks.required = editWorks.checked;
+}
+
+function showScreen(screen) {
+  listScreen.classList.toggle("hidden", screen !== "list");
+  visitsScreen.classList.toggle("hidden", screen !== "visits");
+  detailScreen.classList.toggle("hidden", screen !== "detail");
+  editScreen.classList.toggle("hidden", screen !== "edit");
+  meetingScreen.classList.toggle("hidden", screen !== "meeting");
+  calendarScreen.classList.toggle("hidden", screen !== "calendar");
+  visitsGridScreen.classList.toggle("hidden", screen !== "visits-grid");
+  usersScreen.classList.toggle("hidden", screen !== "users");
+  settingsScreen.classList.toggle("hidden", screen !== "settings");
+  showClientsBtn.classList.toggle(
+    "active-view",
+    screen === "list" || screen === "detail" || screen === "edit" || screen === "meeting"
+  );
+  showVisitsBtn.classList.toggle("active-view", screen === "visits");
+  showVisitsGridBtn.classList.toggle("active-view", screen === "visits-grid");
+  showCalendarBtn.classList.toggle("active-view", screen === "calendar");
+  showUsersBtn.classList.toggle("active-view", screen === "users");
+  showSettingsBtn.classList.toggle("active-view", screen === "settings");
+}
+
+function buildCompanyHash(clientId, branchId = null) {
+  if (!clientId) return "#/clientes";
+  return branchId ? `#/companias/${clientId}/sucursales/${branchId}` : `#/companias/${clientId}`;
+}
+
+function replaceHash(hash) {
+  if (window.location.hash === hash) return;
+  suppressHashRouting = true;
+  window.location.hash = hash;
+  window.setTimeout(() => {
+    suppressHashRouting = false;
+  }, 0);
+}
+
+function syncUrlWithState(screen) {
+  if (!currentUser) return;
+  if (screen === "detail" && selectedClient) {
+    replaceHash(buildCompanyHash(selectedClient.id, selectedBranchView?.id || null));
+    return;
+  }
+  if (screen === "calendar") {
+    replaceHash("#/calendario");
+    return;
+  }
+  if (screen === "visitas" || screen === "visits") {
+    replaceHash("#/visitas");
+    return;
+  }
+  if (screen === "users") {
+    replaceHash("#/configuracion/usuarios");
+    return;
+  }
+  if (screen === "settings") {
+    replaceHash("#/configuracion");
+    return;
+  }
+  replaceHash("#/clientes");
+}
+
+async function openClientDetail(clientId, { branchId = null, smooth = false } = {}) {
+  selectedId = Number(clientId);
+  const loaded = await loadClientDetail(selectedId);
+  if (!loaded) {
+    notifyError("No pudimos abrir la ficha del cliente. Revisá la consola del navegador si vuelve a pasar.");
+    return false;
+  }
+
+  selectedBranchView = branchId
+    ? selectedClient?.branches?.find((branch) => Number(branch.id) === Number(branchId)) || null
+    : null;
+  renderTable();
+  showScreen("detail");
+  syncUrlWithState("detail");
+
+  if (smooth) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  return true;
+}
+
+function parseAppHash() {
+  const hash = window.location.hash || "#/clientes";
+  const normalized = hash.startsWith("#") ? hash.slice(1) : hash;
+  const companyBranchMatch = normalized.match(/^\/companias\/(\d+)\/sucursales\/(\d+)$/);
+  if (companyBranchMatch) {
+    return {
+      screen: "detail",
+      clientId: Number(companyBranchMatch[1]),
+      branchId: Number(companyBranchMatch[2])
+    };
+  }
+
+  const companyMatch = normalized.match(/^\/companias\/(\d+)$/);
+  if (companyMatch) {
+    return {
+      screen: "detail",
+      clientId: Number(companyMatch[1]),
+      branchId: null
+    };
+  }
+
+  if (normalized === "/calendario") return { screen: "calendar" };
+  if (normalized === "/visitas") return { screen: "visits" };
+  if (normalized === "/configuracion/usuarios") return { screen: "users" };
+  if (normalized === "/configuracion") return { screen: "settings" };
+  return { screen: "list" };
+}
+
+async function applyRouteFromHash() {
+  if (!currentUser) return;
+
+  const route = parseAppHash();
+  if (route.screen === "detail") {
+    await openClientDetail(route.clientId, { branchId: route.branchId });
+    return;
+  }
+
+  if (route.screen === "calendar") {
+    calendarView = "month";
+    selectedCalendarDay = null;
+    await loadCalendar();
+    showScreen("calendar");
+    return;
+  }
+
+  if (route.screen === "visits") {
+    await loadVisits();
+    showScreen("visits");
+    return;
+  }
+
+  if (route.screen === "users") {
+    await loadUsers();
+    showScreen("users");
+    return;
+  }
+
+  if (route.screen === "settings") {
+    await loadSettingsCatalogs();
+    showScreen("settings");
+    return;
+  }
+
+  selectedBranchView = null;
+  showScreen("list");
+}
+
+function computeGlobalKpis(globalData) {
+  globalKpis.innerHTML = "";
+  [
+    { label: "Reuniones agendadas", value: globalData.meetingsScheduled || 0 },
+    { label: "Reuniones confirmadas", value: globalData.meetingsConfirmed || 0 },
+    { label: "Reuniones realizadas", value: globalData.meetingsCompleted || 0 },
+    { label: "Clientes visitados", value: globalData.clientsVisited || 0 }
+  ].forEach((kpi) => {
+    const chip = document.createElement("div");
+    chip.className = "kpi-chip";
+    chip.innerHTML = `<b>${kpi.value}</b><span>${kpi.label}</span>`;
+    globalKpis.appendChild(chip);
+  });
+}
+
+function renderTable() {
+  visibleCount.textContent = `${clients.length} clientes`;
+  tableBody.innerHTML = "";
+
+  clients.forEach((company) => {
+    const tr = document.createElement("tr");
+    if (company.id === selectedId) tr.classList.add("active");
+
+    tr.innerHTML = `
+      <td><b>${company.name}</b><br /><span class="muted-inline">${company.companyType} · ${company.country} · ${company.accountStage}</span></td>
+      <td>${company.sector}</td>
+      <td>${company.executiveName || company.manager}</td>
+      <td><span class="risk ${company.risk.toLowerCase()}">${company.risk}</span></td>
+      <td><div class="service-row compact">${renderServices(company, true)}</div></td>
+      <td><div class="meeting-dot-row">${renderMeetingDots(company.meetingDots)}</div></td>
+      <td>${company.nextMeeting}</td>
+    `;
+
+    tr.addEventListener("click", async () => {
+      await openClientDetail(company.id, { smooth: true });
+    });
+
+    tableBody.appendChild(tr);
+  });
+}
+
+function renderVisitsTable() {
+  const sortedVisits = [...visits].sort((left, right) => {
+    const getComparable = (visit) => {
+      if (visitsSort.key === "scheduledFor") return visit.scheduledFor || "";
+      if (visitsSort.key === "scopeLabel") return visit.scopeLabel || "";
+      if (visitsSort.key === "kindLabel") return visit.kindLabel || visit.kind || "";
+      if (visitsSort.key === "contactName") return [visit.contactName, visit.contactRole].filter(Boolean).join(" · ");
+      return String(visit[visitsSort.key] || "");
+    };
+
+    const leftValue = getComparable(left);
+    const rightValue = getComparable(right);
+    const comparison =
+      typeof leftValue === "string" && typeof rightValue === "string"
+        ? leftValue.localeCompare(rightValue, "es", { numeric: true, sensitivity: "base" })
+        : String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+
+    return visitsSort.direction === "asc" ? comparison : comparison * -1;
+  });
+
+  visitsVisibleCount.textContent = `${sortedVisits.length} visitas`;
+  visitsTableBody.innerHTML = "";
+
+  document.querySelectorAll(".table-sort-btn").forEach((button) => {
+    const isActive = button.dataset.sortKey === visitsSort.key;
+    button.classList.toggle("active", isActive);
+    button.dataset.direction = isActive ? visitsSort.direction : "";
+  });
+
+  if (!sortedVisits.length) {
+    visitsTableBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty-table-cell">No encontramos visitas con esos filtros.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  sortedVisits.forEach((visit) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${formatDate(visit.scheduledFor)}</b></td>
+      <td><b>${visit.clientName}</b></td>
+      <td>${visit.branchName || "Casa matriz"}</td>
+      <td>${visit.kindLabel || visit.kind}</td>
+      <td>${visit.modality || "-"}</td>
+      <td><span class="visit-status-badge ${String(visit.status || "").toLowerCase()}">${visit.status}</span></td>
+      <td>${[visit.contactName, visit.contactRole].filter(Boolean).join(" · ") || "-"}</td>
+    `;
+
+    row.addEventListener("click", async () => {
+      await openClientDetail(visit.clientId, { branchId: visit.branchId || null, smooth: true });
+    });
+
+    visitsTableBody.appendChild(row);
+  });
+}
+
+function formatGridDate(dateValue) {
+  if (!dateValue) return "";
+  const [year, month, day] = dateValue.split("-");
+  if (!year || !month || !day) return dateValue;
+  return `${Number(day)}/${Number(month)}/${String(year).slice(2)}`;
+}
+
+function renderVisitsGridLegend() {
+  visitsGridLegend.innerHTML = meetingTypes
+    .map((type) => `<span class="meeting-type-badge ${type.color}">${type.label}</span>`)
+    .join("");
+}
+
+function renderVisitsGrid() {
+  visitsGridWrap.innerHTML = "";
+  renderVisitsGridLegend();
+
+  if (!visitsGridData.length) {
+    visitsGridWrap.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>No hay visitas realizadas</h4>
+        <p>Cuando existan reuniones marcadas como realizadas, van a aparecer en esta grilla.</p>
+      </article>
+    `;
+    return;
+  }
+
+  const groupedByClient = visitsGridData.reduce((accumulator, visit) => {
+    const key = `${visit.clientId}`;
+    if (!accumulator.has(key)) {
+      accumulator.set(key, {
+        clientId: visit.clientId,
+        clientName: visit.clientName,
+        visits: []
+      });
+    }
+    accumulator.get(key).visits.push(visit);
+    return accumulator;
+  }, new Map());
+
+  const rows = [...groupedByClient.values()]
+    .map((row) => ({
+      ...row,
+      visits: row.visits.sort((left, right) => left.scheduledFor.localeCompare(right.scheduledFor))
+    }))
+    .sort((left, right) => left.clientName.localeCompare(right.clientName, "es"));
+
+  const maxColumns = Math.max(...rows.map((row) => row.visits.length), 1);
+  const table = document.createElement("table");
+  table.className = "visits-grid-table";
+
+  const headerCells = ['<th class="visits-grid-corner" colspan="1">Cliente</th>']
+    .concat(Array.from({ length: maxColumns }, () => "<th></th>"))
+    .join("");
+
+  table.innerHTML = `
+    <thead>
+      <tr>${headerCells}</tr>
+    </thead>
+    <tbody></tbody>
+  `;
+
+  const tbody = table.querySelector("tbody");
+
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    const cells = [`<th class="visits-grid-client" title="${row.clientName}"><span>${row.clientName}</span></th>`];
+
+    for (let index = 0; index < maxColumns; index += 1) {
+      const visit = row.visits[index];
+      if (!visit) {
+        cells.push('<td class="visits-grid-empty"></td>');
+        continue;
+      }
+
+      cells.push(`
+        <td>
+          <button type="button" class="visits-grid-cell ${visit.color}" data-client-id="${visit.clientId}" data-meeting-id="${visit.id}">
+            ${formatGridDate(visit.scheduledFor)}
+          </button>
+        </td>
+      `);
+    }
+
+    tr.innerHTML = cells.join("");
+    tr.querySelectorAll(".visits-grid-cell").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const visit = row.visits.find((item) => Number(item.id) === Number(button.dataset.meetingId));
+        if (!visit) return;
+        await openClientDetail(visit.clientId, { branchId: visit.branchId || null, smooth: true });
+        openMeetingDetailScreen(visit);
+      });
+    });
+    tbody.appendChild(tr);
+  });
+
+  visitsGridWrap.appendChild(table);
+}
+
+function getVisitsFilters() {
+  return {
+    search: visitsSearchInput.value.trim(),
+    status: visitsStatusFilter.value,
+    kind: visitsTypeFilter.value,
+    modality: visitsModalityFilter.value,
+    executiveUserId: visitsExecutiveFilter.value,
+    supervisorUserId: visitsSupervisorFilter.value,
+    participantUserId: visitsParticipantFilter.value,
+    dateFrom: visitsDateFromFilter.value,
+    dateTo: visitsDateToFilter.value
+  };
+}
+
+function getCalendarFilters() {
+  return {
+    participantUserId: calendarParticipantFilter.value
+  };
+}
+
+function kpiItem(label, value) {
+  const div = document.createElement("div");
+  div.className = "kpi-box";
+  div.innerHTML = `<span>${label}</span><b>${value}</b>`;
+  return div;
+}
+
+function renderRoleAssignmentsCard(label, value) {
+  const div = document.createElement("div");
+  div.className = "kpi-box";
+  div.innerHTML = `<span>${label}</span><b>${value || "Sin asignar"}</b>`;
+  return div;
+}
+
+function renderMeetingCard(meeting) {
+  const fragment = meetingCardTemplate.content.cloneNode(true);
+  const card = fragment.querySelector(".meeting-card");
+  const dateNode = fragment.querySelector(".meeting-date");
+  const titleNode = fragment.querySelector(".meeting-title");
+  const kindNode = fragment.querySelector(".meeting-kind-badge");
+  const statusNode = fragment.querySelector(".meeting-status-badge");
+  const metaNode = fragment.querySelector(".meeting-meta");
+  const objectiveNode = fragment.querySelector(".meeting-objective");
+  const minutesNode = fragment.querySelector(".meeting-minutes");
+  const findingsNode = fragment.querySelector(".meeting-findings");
+  const opportunitiesNode = fragment.querySelector(".meeting-opportunities");
+  const substituteRecoveryNode = fragment.querySelector(".meeting-substitute-recovery");
+  const globalContactsBlock = fragment.querySelector(".meeting-global-contacts-block");
+  const globalContactsNode = fragment.querySelector(".meeting-global-contacts");
+  const serviceStatusBlock = fragment.querySelector(".meeting-service-status-block");
+  const serviceStatusNode = fragment.querySelector(".meeting-service-status");
+  const editButton = fragment.querySelector(".edit-meeting-btn");
+
+  const typeMeta = getMeetingTypeMeta(meeting.kind);
+
+  dateNode.textContent = formatDate(meeting.scheduledFor);
+  titleNode.textContent = meeting.subject;
+  kindNode.textContent = typeMeta.label;
+  kindNode.classList.add(typeMeta.color);
+  statusNode.textContent = meeting.status;
+  statusNode.classList.add(
+    meeting.status === "Realizada" ? "done" : meeting.status === "Confirmada" ? "confirmed" : "scheduled"
+  );
+
+  const meta = [];
+  if (meeting.branchId && meeting.branchName) meta.push(`Sucursal: ${meeting.branchName}`);
+  if (meeting.participants) meta.push(`Participantes: ${meeting.participants}`);
+  if (meeting.contactName || meeting.contactRole) {
+    meta.push(`Contacto: ${[meeting.contactName, meeting.contactRole].filter(Boolean).join(" · ")}`);
+  }
+  if (meeting.modality) meta.push(`Modalidad: ${meeting.modality}`);
+  if (meeting.createdBy) meta.push(`Cargado por: ${meeting.createdBy}`);
+  metaNode.textContent = meta.join(" · ");
+
+  objectiveNode.textContent = meeting.objective || "Sin objetivo registrado";
+  minutesNode.textContent = meeting.minutes || "Todavía no se cargó la minuta.";
+  findingsNode.textContent = meeting.activeNegotiationsStatus || "Sin status cargado.";
+  opportunitiesNode.textContent = meeting.opportunities || "Sin oportunidades registradas.";
+  substituteRecoveryNode.textContent = meeting.substituteRecovery || "Sin recupero de sustitutos cargado.";
+  globalContactsNode.textContent = meeting.globalContacts || "Sin contactos globales registrados.";
+  serviceStatusNode.textContent = meeting.serviceStatus || "Sin status del servicio registrado.";
+  globalContactsBlock.classList.toggle("hidden", !meeting.globalContacts);
+  serviceStatusBlock.classList.toggle("hidden", !meeting.serviceStatus);
+
+  if (meeting.status === "Realizada") {
+    card.classList.add("meeting-card-done");
+  }
+
+  editButton.addEventListener("click", () => {
+    openMeetingScreen(meeting);
+  });
+
+  return fragment;
+}
+
+function renderCompactMeetingListItem(meeting) {
+  const article = document.createElement("article");
+  const typeMeta = getMeetingTypeMeta(meeting.kind);
+  article.className = `meeting-list-item ${meeting.status === "Realizada" ? "done" : ""}`;
+  article.innerHTML = `
+    <div class="meeting-list-item-main">
+      <p class="meeting-date">${formatDate(meeting.scheduledFor)}</p>
+      <h4 class="meeting-list-item-title">${meeting.subject}</h4>
+      <p class="meeting-list-item-meta">${[
+        meeting.kindLabel || typeMeta.label,
+        meeting.contactName ? `${meeting.contactName}${meeting.contactRole ? ` · ${meeting.contactRole}` : ""}` : "",
+        meeting.modality || ""
+      ]
+        .filter(Boolean)
+        .join(" · ")}</p>
+    </div>
+    <div class="meeting-list-item-actions">
+      <span class="meeting-kind-badge ${typeMeta.color}">${typeMeta.label}</span>
+      <span class="meeting-status-badge ${
+        meeting.status === "Realizada" ? "done" : meeting.status === "Confirmada" ? "confirmed" : "scheduled"
+      }">${meeting.status}</span>
+    </div>
+  `;
+
+  article.addEventListener("click", () => {
+    openMeetingDetailScreen(meeting);
+  });
+
+  return article;
+}
+
+function renderBranchCard(branch) {
+  const article = document.createElement("article");
+  article.className = "meeting-card";
+  article.innerHTML = `
+    <div class="meeting-card-head">
+      <div>
+        <h4 class="meeting-title">${branch.name}</h4>
+        <p class="meeting-meta">${branch.sector} · Segmento ${branch.segment} · Riesgo ${branch.risk}</p>
+      </div>
+      <button class="secondary-btn edit-branch-btn" type="button">Editar sucursal</button>
+    </div>
+    <div class="service-row">${renderServices(branch)}</div>
+    <p class="meeting-objective">Ejecutivo: ${branch.executiveName || "Sin asignar"}</p>
+    <p class="meeting-findings">Sup. IFCI: ${branch.supervisors?.fixedFire?.name || "Sin asignar"} · Sup. EXT: ${branch.supervisors?.extinguishers?.name || "Sin asignar"} · Sup. Obra: ${branch.supervisors?.works?.name || "Sin asignar"}</p>
+  `;
+
+  article.addEventListener("click", () => {
+    selectedBranchView = branch;
+    renderDetail();
+    syncUrlWithState("detail");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  article.querySelector(".edit-branch-btn").addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectedBranchView = branch;
+    openBranchEditScreen(branch);
+  });
+
+  return article;
+}
+
+function renderCalendar() {
+  calendarMonthLabel.textContent =
+    calendarView === "day" && selectedCalendarDay ? fullDateLabel(selectedCalendarDay) : monthLabel(calendarDate);
+  calendarGrid.innerHTML = "";
+  calendarDayView.innerHTML = "";
+  calendarGrid.classList.toggle("hidden", calendarView === "day");
+  calendarDayView.classList.toggle("hidden", calendarView !== "day");
+  backToMonthBtn.classList.toggle("hidden", calendarView !== "day");
+  prevMonthBtn.classList.toggle("hidden", calendarView === "day");
+  nextMonthBtn.classList.toggle("hidden", calendarView === "day");
+
+  if (calendarView === "day" && selectedCalendarDay) {
+    renderCalendarDayView();
+    return;
+  }
+
+  const firstDay = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - startWeekday);
+
+  const meetingsByDate = new Map();
+  calendarMeetings.forEach((meeting) => {
+    if (!meetingsByDate.has(meeting.scheduledFor)) {
+      meetingsByDate.set(meeting.scheduledFor, []);
+    }
+    meetingsByDate.get(meeting.scheduledFor).push(meeting);
+  });
+
+  ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"].forEach((label) => {
+    const cell = document.createElement("div");
+    cell.className = "calendar-weekday";
+    cell.textContent = label;
+    calendarGrid.appendChild(cell);
+  });
+
+  for (let index = 0; index < 42; index += 1) {
+    const day = new Date(gridStart);
+    day.setDate(gridStart.getDate() + index);
+    const dayKey = dateKey(day);
+    const cell = document.createElement("article");
+    const isCurrentMonth = day.getMonth() === calendarDate.getMonth();
+    const dayMeetings = meetingsByDate.get(dayKey) || [];
+
+    cell.className = `calendar-day${isCurrentMonth ? "" : " muted-day"}`;
+    cell.innerHTML = `
+      <div class="calendar-day-head">
+        <span>${day.getDate()}</span>
+        <span>${dayMeetings.length ? `${dayMeetings.length} ag.` : ""}</span>
+      </div>
+      <div class="calendar-events"></div>
+    `;
+
+    cell.addEventListener("click", () => {
+      selectedCalendarDay = dayKey;
+      calendarView = "day";
+      renderCalendar();
+    });
+
+    const events = cell.querySelector(".calendar-events");
+    dayMeetings.slice(0, 3).forEach((meeting) => {
+      const event = document.createElement("button");
+      event.type = "button";
+      event.className = `calendar-event ${meeting.color} ${getCalendarStatusClass(meeting.status)}`;
+      event.textContent = `${meeting.scopeLabel || meeting.clientName} · ${meeting.subject}`;
+      event.addEventListener("click", async () => {
+        event.stopPropagation();
+        await openMeetingContext(meeting);
+      });
+      events.appendChild(event);
+    });
+
+    if (dayMeetings.length > 3) {
+      const moreButton = document.createElement("button");
+      moreButton.type = "button";
+      moreButton.className = "calendar-more";
+      moreButton.textContent = `+${dayMeetings.length - 3} más`;
+      moreButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectedCalendarDay = dayKey;
+        calendarView = "day";
+        renderCalendar();
+      });
+      events.appendChild(moreButton);
+    }
+
+    calendarGrid.appendChild(cell);
+  }
+}
+
+function renderCalendarDayView() {
+  const dayMeetings = calendarMeetings.filter((meeting) => meeting.scheduledFor === selectedCalendarDay);
+
+  if (!dayMeetings.length) {
+    calendarDayView.innerHTML = `
+      <div class="empty-meeting-state compact-empty-state">
+        <h3>Sin reuniones para esta fecha</h3>
+        <p>Podés volver a la vista mensual para elegir otro día.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "calendar-day-stack";
+
+  dayMeetings.forEach((meeting) => {
+    const card = document.createElement("article");
+    card.className = `meeting-card day-meeting-card ${meeting.color} ${getCalendarStatusClass(meeting.status)}`;
+    card.innerHTML = `
+      <div class="meeting-head">
+        <div>
+          <p class="meeting-date">${formatDate(meeting.scheduledFor)}</p>
+          <h3>${meeting.subject}</h3>
+          <p class="meeting-meta">${meeting.scopeLabel || meeting.clientName} · ${meeting.kindLabel || meeting.kind} · ${meeting.modality || "Presencial"}</p>
+        </div>
+        <div class="meeting-head-actions">
+          <span class="meeting-type-badge ${meeting.color}">${meeting.kindLabel || meeting.kind}</span>
+        </div>
+      </div>
+      <p class="meeting-objective">${meeting.contactName ? `Con ${meeting.contactName}` : "Sin contacto definido"}${meeting.contactRole ? ` · ${meeting.contactRole}` : ""}</p>
+    `;
+
+    card.addEventListener("click", async () => {
+      await openMeetingContext(meeting);
+    });
+
+    wrapper.appendChild(card);
+  });
+
+  calendarDayView.appendChild(wrapper);
+}
+
+async function openMeetingContext(meeting) {
+  await openClientDetail(meeting.clientId, { branchId: meeting.branchId || null });
+}
+
+function openMeetingDetailScreen(meeting) {
+  if (!selectedClient) return;
+  meetingScreenMode = "detail";
+  meetingMode = "edit";
+  editingMeetingId = meeting?.id || null;
+  meetingScreenTitle.textContent = `Reunión · ${selectedClient.name}`;
+  meetingScreenMeta.textContent = "Detalle completo de la reunión.";
+  meetingForm.classList.add("hidden");
+  meetingDetailView.classList.remove("hidden");
+  editMeetingFromDetailBtn.classList.remove("hidden");
+  meetingDetailView.innerHTML = "";
+  meetingDetailView.appendChild(renderMeetingCard(meeting));
+  showScreen("meeting");
+}
+
+function renderDetail() {
+  if (!selectedClient) return;
+  const meetings = Array.isArray(selectedClient.meetings) ? selectedClient.meetings : [];
+  const parentMeetings = meetings.filter((meeting) => !meeting.branchId);
+  const currentEntity = selectedBranchView || selectedClient;
+  const entityMeetings = selectedBranchView
+    ? meetings.filter((meeting) => Number(meeting.branchId) === Number(selectedBranchView.id))
+    : parentMeetings;
+  const meetingsCompleted = Number(selectedClient.meetingsCompleted || 0);
+  const meetingsCount = Number(selectedClient.meetingsCount || meetings.length);
+  const supervisorSummary = [
+    currentEntity.supervisors?.fixedFire ? `Sup. IFCI: ${currentEntity.supervisors.fixedFire.name}` : "",
+    currentEntity.supervisors?.extinguishers ? `Sup. EXT: ${currentEntity.supervisors.extinguishers.name}` : "",
+    currentEntity.supervisors?.works ? `Sup. Obra: ${currentEntity.supervisors.works.name}` : ""
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  backToList.textContent = selectedBranchView ? "← Volver a la casa matriz" : "← Volver al listado";
+  goToEditBtn.textContent = selectedBranchView ? "Editar sucursal" : "Editar compañía";
+  detailCompanyName.textContent = selectedBranchView ? `${selectedBranchView.name} · ${selectedClient.name}` : selectedClient.name;
+  detailMeta.textContent = selectedBranchView
+    ? `${currentEntity.sector} · Ejecutivo: ${currentEntity.executiveName || currentEntity.manager} · Riesgo ${currentEntity.risk}${supervisorSummary ? ` · ${supervisorSummary}` : ""}`
+    : `${currentEntity.sector} · ${currentEntity.companyType} · ${currentEntity.country} · ${currentEntity.accountStage} · Ejecutivo: ${currentEntity.executiveName || currentEntity.manager} · Riesgo ${currentEntity.risk}${supervisorSummary ? ` · ${supervisorSummary}` : ""}`;
+  detailSegment.textContent = `Segmento ${currentEntity.segment}`;
+  detailServices.innerHTML = renderServices(currentEntity);
+
+  detailKpis.innerHTML = "";
+  if (selectedBranchView) {
+    detailKpis.append(
+      renderRoleAssignmentsCard("Ejecutivo", currentEntity.executiveName),
+      renderRoleAssignmentsCard("Supervisor IFCI", currentEntity.supervisors?.fixedFire?.name),
+      renderRoleAssignmentsCard("Supervisor EXT", currentEntity.supervisors?.extinguishers?.name),
+      renderRoleAssignmentsCard("Supervisor Obra", currentEntity.supervisors?.works?.name),
+      kpiItem("Reuniones", `${entityMeetings.filter((meeting) => meeting.status === "Realizada").length}/${entityMeetings.length}`)
+    );
+  } else {
+    detailKpis.append(
+      renderRoleAssignmentsCard("Ejecutivo", selectedClient.executiveName),
+      renderRoleAssignmentsCard("Supervisor IFCI", selectedClient.supervisors?.fixedFire?.name),
+      renderRoleAssignmentsCard("Supervisor EXT", selectedClient.supervisors?.extinguishers?.name),
+      renderRoleAssignmentsCard("Supervisor Obra", selectedClient.supervisors?.works?.name),
+      kpiItem("Reuniones", `${meetingsCompleted}/${meetingsCount}`)
+    );
+  }
+
+  meetingList.innerHTML = "";
+
+  if (!entityMeetings.length) {
+    meetingList.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>No hay reuniones cargadas</h4>
+        <p>${selectedBranchView ? "Las reuniones de esta sucursal van a aparecer acá." : "Las reuniones de casa matriz van a aparecer acá."}</p>
+      </article>
+    `;
+  } else {
+    entityMeetings.forEach((meeting) => {
+      meetingList.appendChild(renderCompactMeetingListItem(meeting));
+    });
+  }
+
+  branchList.innerHTML = "";
+  if (selectedBranchView) {
+    branchList.innerHTML = "";
+    addBranchBtn.classList.add("hidden");
+    return;
+  }
+
+  addBranchBtn.classList.remove("hidden");
+  if (!selectedClient.branches?.length) {
+    branchList.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>No hay sucursales cargadas</h4>
+        <p>Agregá la primera sucursal para gestionar responsables y servicios por ubicación.</p>
+      </article>
+    `;
+  } else {
+    selectedClient.branches.forEach((branch) => {
+      branchList.appendChild(renderBranchCard(branch));
+    });
+  }
+}
+
+function renderUsers() {
+  const currentRoleValue = newUserRole.value;
+  newUserRole.innerHTML = userRoles.map((role) => `<option value="${role}">${role}</option>`).join("");
+  if (currentRoleValue && userRoles.includes(currentRoleValue)) {
+    newUserRole.value = currentRoleValue;
+  }
+  usersTableBody.innerHTML = "";
+
+  users.forEach((user) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${user.name}</b></td>
+      <td>${user.email}</td>
+      <td>${user.role}</td>
+      <td>
+        <div class="table-actions">
+          <button class="secondary-btn edit-user-btn" type="button">Editar</button>
+          <button class="ghost-btn delete-user-btn" type="button">Eliminar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".edit-user-btn").addEventListener("click", () => {
+      startUserEdit(user);
+    });
+
+    row.querySelector(".delete-user-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a eliminar el usuario ${user.name}. Esta acción no se puede deshacer.`);
+      if (!confirmed) return;
+
+      try {
+        await deleteUser(user.id);
+        if (editingUserId === user.id) resetUserForm();
+        createUserStatus.textContent = "Usuario eliminado";
+        await loadUsers();
+        await loadAssignmentOptions();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+
+    usersTableBody.appendChild(row);
+  });
+}
+
+async function createUser(payload) {
+  const response = await fetch("/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo crear el usuario");
+  }
+  return data.user;
+}
+
+async function updateUser(userId, payload) {
+  const response = await fetch(`/api/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo actualizar el usuario");
+  }
+  return data.user;
+}
+
+async function deleteUser(userId) {
+  const response = await fetch(`/api/users/${userId}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar el usuario");
+  }
+  return data;
+}
+
+async function loadSectorOptions() {
+  const response = await fetch("/api/settings/sectors");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar los sectores");
+  }
+  sectorOptions = data.sectors || [];
+  renderSectorSelect(editSector.value);
+  renderSectors();
+}
+
+async function loadMeetingTypesConfig() {
+  const response = await fetch("/api/settings/meeting-types");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar los tipos de reunión");
+  }
+  meetingTypes = data.meetingTypes || [];
+  renderTypeSelectOptions();
+  renderMeetingTypesConfig();
+}
+
+async function loadMeetingReasonsConfig() {
+  const response = await fetch("/api/settings/meeting-reasons");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar los motivos de reunión");
+  }
+  meetingReasons = data.meetingReasons || [];
+  renderTypeSelectOptions();
+  renderMeetingReasonsConfig();
+}
+
+async function loadSettingsCatalogs() {
+  await loadSectorOptions();
+  await loadMeetingTypesConfig();
+  await loadMeetingReasonsConfig();
+}
+
+async function createSector(name) {
+  const response = await fetch("/api/settings/sectors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo crear el sector");
+  }
+  return data.sector;
+}
+
+async function deleteSector(sectorId) {
+  const response = await fetch(`/api/settings/sectors/${sectorId}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar el sector");
+  }
+  return data;
+}
+
+async function saveMeetingType(payload) {
+  const endpoint = editingMeetingTypeId ? `/api/settings/meeting-types/${editingMeetingTypeId}` : "/api/settings/meeting-types";
+  const method = editingMeetingTypeId ? "PATCH" : "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar el tipo de reunión");
+  }
+  return data.meetingTypes || [];
+}
+
+async function deleteMeetingType(id) {
+  const response = await fetch(`/api/settings/meeting-types/${id}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar el tipo de reunión");
+  }
+  return data.meetingTypes || [];
+}
+
+async function saveMeetingReason(payload) {
+  const endpoint = editingMeetingReasonId
+    ? `/api/settings/meeting-reasons/${editingMeetingReasonId}`
+    : "/api/settings/meeting-reasons";
+  const method = editingMeetingReasonId ? "PATCH" : "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar el motivo de reunión");
+  }
+  return data.meetingReasons || [];
+}
+
+async function deleteMeetingReason(id) {
+  const response = await fetch(`/api/settings/meeting-reasons/${id}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar el motivo de reunión");
+  }
+  return data.meetingReasons || [];
+}
+
+function resetUserForm() {
+  userFormMode = "create";
+  editingUserId = null;
+  userFormTitle.textContent = "Nuevo usuario";
+  createUserBtn.textContent = "Crear usuario";
+  cancelUserEditBtn.classList.add("hidden");
+  newUserPassword.required = true;
+  newUserPassword.placeholder = "";
+  newUserName.value = "";
+  newUserEmail.value = "";
+  newUserPassword.value = "";
+  if (userRoles.length) {
+    newUserRole.value = userRoles[0];
+  }
+}
+
+function startUserEdit(user) {
+  userFormMode = "edit";
+  editingUserId = user.id;
+  userFormTitle.textContent = `Editar usuario · ${user.name}`;
+  createUserBtn.textContent = "Guardar usuario";
+  cancelUserEditBtn.classList.remove("hidden");
+  newUserPassword.required = false;
+  newUserPassword.placeholder = "Dejar vacío para mantener la actual";
+  newUserName.value = user.name;
+  newUserEmail.value = user.email;
+  newUserRole.value = user.role;
+  newUserPassword.value = "";
+  createUserStatus.textContent = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function fillEditForm(client) {
+  const entity = client || {};
+  renderSectorSelect(entity?.sector || "");
+  renderUserSelect(editManager, assignmentOptions.executives, entity?.executiveUserId, "Seleccionar ejecutivo");
+  renderUserSelect(
+    editSupervisorFixedFire,
+    assignmentOptions.supervisors.fixedFire,
+    entity?.supervisors?.fixedFire?.userId,
+    "Seleccionar supervisor IFCI"
+  );
+  renderUserSelect(
+    editSupervisorExtinguishers,
+    assignmentOptions.supervisors.extinguishers,
+    entity?.supervisors?.extinguishers?.userId,
+    "Seleccionar supervisor EXT"
+  );
+  renderUserSelect(
+    editSupervisorWorks,
+    assignmentOptions.supervisors.works,
+    entity?.supervisors?.works?.userId,
+    "Seleccionar supervisor Obra"
+  );
+
+  editName.value = entity?.name || "";
+  editCompanyType.value = entity?.companyType || "Local";
+  editCountry.value = entity?.country || "Argentina";
+  editAccountStage.value = entity?.accountStage || "Activa";
+  editRisk.value = entity?.risk || "Bajo";
+  editSegment.value = entity?.segment || "C";
+  editFixedFire.checked = !!entity?.services?.fixedFire;
+  editExtinguishers.checked = !!entity?.services?.extinguishers;
+  editWorks.checked = !!entity?.services?.works;
+  editNotes.value = entity?.notes || "";
+  editCompanyStatus.textContent = "";
+  editManager.required = editEntityType !== "branch";
+  editCompanyType.required = editEntityType !== "branch";
+  editCountry.required = editEntityType !== "branch";
+  editAccountStage.required = editEntityType !== "branch";
+  editManager.closest("label").classList.toggle("hidden", editEntityType === "branch");
+  document.getElementById("editCompanyTypeGroup").classList.toggle("hidden", editEntityType === "branch");
+  document.getElementById("editCountryGroup").classList.toggle("hidden", editEntityType === "branch");
+  document.getElementById("editAccountStageGroup").classList.toggle("hidden", editEntityType === "branch");
+  syncSupervisorVisibility();
+  renderAccountRoleSummary();
+}
+
+function fillMeetingForm(meeting) {
+  const defaultKind = meetingTypes[0]?.value || "Comercial";
+  const defaultStatus = meetingStatuses[0] || "Agendada";
+  const defaultModality = meetingModalities[0] || "Presencial";
+  meetingScope.innerHTML = [
+    `<option value="">Seleccionar alcance</option>`,
+    `<option value="client" ${!meeting?.branchId ? "selected" : ""}>${selectedClient.name} (Casa matriz)</option>`,
+    ...(selectedClient?.branches || []).map(
+      (branch) =>
+        `<option value="branch:${branch.id}" ${Number(meeting?.branchId) === Number(branch.id) ? "selected" : ""}>${branch.name}</option>`
+    )
+  ].join("");
+  meetingKind.value = meeting?.kind || defaultKind;
+  meetingSubject.value = meeting?.subject || "";
+  meetingObjective.value = meeting?.objective || "";
+  meetingDate.value = meeting?.scheduledFor || "";
+  meetingModality.value = meeting?.modality || defaultModality;
+  const participantNames = String(meeting?.participants || "")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  const fallbackParticipantIds = getParticipantUsers()
+    .filter((user) => participantNames.includes(user.name.trim().toLowerCase()))
+    .map((user) => user.id);
+  setSelectedParticipantUserIds(meeting?.participantUserIds?.length ? meeting.participantUserIds : fallbackParticipantIds);
+  meetingParticipantsSearch.value = "";
+  renderMeetingParticipantsPicker();
+  meetingContactName.value = meeting?.contactName || "";
+  meetingContactRole.value = meeting?.contactRole || "";
+  meetingStatusSelect.value = meeting?.status || defaultStatus;
+  meetingNextDate.value = meeting?.nextMeetingDate || "";
+  meetingMinutes.value = meeting?.minutes || "";
+  meetingNegotiationStatus.value = meeting?.activeNegotiationsStatus || meeting?.findings || "";
+  meetingOpportunities.value = meeting?.opportunities || "";
+  meetingSubstituteRecovery.value = meeting?.substituteRecovery || "";
+  meetingGlobalContacts.value = meeting?.globalContacts || "";
+  meetingServiceStatus.value = meeting?.serviceStatus || "";
+  meetingStatus.textContent = "";
+  syncMeetingCompletionFields();
+  syncMeetingContextBlocks();
+}
+
+function openCreateScreen() {
+  editMode = "create";
+  editEntityType = "client";
+  editingBranchId = null;
+  editScreenTitle.textContent = "Nueva compañía";
+  saveCompanyBtn.textContent = "Crear compañía";
+  hideCompanyBtn.classList.add("hidden");
+  fillEditForm(null);
+  showScreen("edit");
+}
+
+function openEditScreen() {
+  if (!selectedClient) return;
+  editMode = "edit";
+  editEntityType = "client";
+  editingBranchId = null;
+  editScreenTitle.textContent = `Editar compañía · ${selectedClient.name}`;
+  saveCompanyBtn.textContent = "Guardar cambios";
+  hideCompanyBtn.classList.remove("hidden");
+  fillEditForm(selectedClient);
+  showScreen("edit");
+}
+
+function openBranchCreateScreen() {
+  if (!selectedClient) return;
+  editMode = "create";
+  editEntityType = "branch";
+  editingBranchId = null;
+  editScreenTitle.textContent = `Nueva sucursal · ${selectedClient.name}`;
+  saveCompanyBtn.textContent = "Crear sucursal";
+  hideCompanyBtn.classList.add("hidden");
+  fillEditForm({
+    sector: selectedClient.sector,
+    companyType: selectedClient.companyType,
+    country: selectedClient.country,
+    accountStage: selectedClient.accountStage,
+    risk: selectedClient.risk,
+    segment: selectedClient.segment,
+    services: { fixedFire: false, extinguishers: false, works: false },
+    supervisors: { fixedFire: null, extinguishers: null, works: null },
+    executiveUserId: selectedClient.executiveUserId,
+    notes: ""
+  });
+  showScreen("edit");
+}
+
+function openBranchEditScreen(branch) {
+  editMode = "edit";
+  editEntityType = "branch";
+  editingBranchId = branch.id;
+  editScreenTitle.textContent = `Editar sucursal · ${branch.name}`;
+  saveCompanyBtn.textContent = "Guardar sucursal";
+  hideCompanyBtn.classList.add("hidden");
+  fillEditForm(branch);
+  showScreen("edit");
+}
+
+function renderAccountRoleSummary() {
+  accountRolesGrid.innerHTML = "";
+  const executiveName =
+    editEntityType === "branch"
+      ? selectedClient?.executiveName || "Sin asignar"
+      : editManager.selectedOptions[0]?.textContent || "Sin asignar";
+  const fixedFireName = editFixedFire.checked ? editSupervisorFixedFire.selectedOptions[0]?.textContent || "Sin asignar" : "No aplica";
+  const extinguishersName = editExtinguishers.checked
+    ? editSupervisorExtinguishers.selectedOptions[0]?.textContent || "Sin asignar"
+    : "No aplica";
+  const worksName = editWorks.checked ? editSupervisorWorks.selectedOptions[0]?.textContent || "Sin asignar" : "No aplica";
+
+  accountRolesGrid.append(
+    renderRoleAssignmentsCard("Ejecutivo", executiveName),
+    renderRoleAssignmentsCard("Supervisor IFCI", fixedFireName),
+    renderRoleAssignmentsCard("Supervisor EXT", extinguishersName),
+    renderRoleAssignmentsCard("Supervisor Obra", worksName)
+  );
+}
+
+function openMeetingScreen(meeting = null) {
+  if (!selectedClient) return;
+  meetingScreenMode = "form";
+  meetingMode = meeting ? "edit" : "create";
+  editingMeetingId = meeting?.id || null;
+  meetingScreenTitle.textContent = meeting
+    ? `Editar reunión · ${selectedClient.name}`
+    : `Nueva reunión · ${selectedClient.name}`;
+  meetingScreenMeta.textContent = meeting
+    ? "Actualizá tipo, estado, participantes, minuta y hallazgos."
+    : "Podés dejarla agendada en una fecha futura o marcarla como realizada si ya ocurrió.";
+  saveMeetingBtn.textContent = meeting ? "Guardar cambios" : "Guardar reunión";
+  meetingDetailView.classList.add("hidden");
+  editMeetingFromDetailBtn.classList.add("hidden");
+  meetingForm.classList.remove("hidden");
+  fillMeetingForm(meeting);
+  if (!meeting && selectedBranchView) {
+    meetingScope.value = `branch:${selectedBranchView.id}`;
+  }
+  showScreen("meeting");
+}
+
+function getFilters() {
+  return {
+    search: searchInput.value.trim(),
+    risk: riskFilter.value,
+    segment: segmentFilter.value,
+    fixedFire: fixedFireFilter.value,
+    extinguishers: extinguishersFilter.value,
+    works: worksFilter.value
+  };
+}
+
+function buildQuery(params) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value && value !== "todos") qs.set(key, value);
+  });
+  return qs.toString();
+}
+
+async function loadCatalogs() {
+  const response = await fetch("/api/meeting-types");
+  const data = await response.json();
+  meetingTypes = data.meetingTypes || [];
+  meetingReasons = data.meetingReasons || [];
+  meetingStatuses = data.statuses || [];
+  meetingModalities = data.modalities || ["Presencial", "Virtual"];
+  renderTypeSelectOptions();
+}
+
+async function loadUsers() {
+  const response = await fetch("/api/users");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar los usuarios");
+  }
+  users = data.users || [];
+  userRoles = data.roles || [];
+  renderUsers();
+  if (userFormMode === "edit") {
+    const currentEditingUser = users.find((user) => user.id === editingUserId);
+    if (currentEditingUser) {
+      startUserEdit(currentEditingUser);
+    } else {
+      resetUserForm();
+    }
+  } else {
+    resetUserForm();
+  }
+}
+
+async function loadAssignmentOptions() {
+  const response = await fetch("/api/company-assignment-options");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar las asignaciones");
+  }
+  assignmentOptions = data;
+  renderVisitsResponsibleFilters();
+  renderMeetingParticipantsPicker();
+  setSelectedParticipantUserIds(selectedParticipantUserIds);
+}
+
+async function updateVisitStatus(meetingId, status) {
+  const response = await fetch(`/api/meetings/${meetingId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo actualizar el estado de la visita");
+  }
+  return data.meeting;
+}
+
+async function hideClient(clientId) {
+  const response = await fetch(`/api/clients/${clientId}/hide`, {
+    method: "PATCH"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo ocultar la compañía");
+  }
+  return data;
+}
+
+async function exportVisits() {
+  const query = buildQuery(getVisitsFilters());
+  const response = await fetch(`/api/visits/export${query ? `?${query}` : ""}`);
+  if (!response.ok) {
+    let message = "No se pudo exportar la vista de visitas";
+    try {
+      const data = await response.json();
+      message = data?.error || message;
+    } catch (_error) {
+      // ignore non-json export error payloads
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "visitas.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function loadClients(options = {}) {
+  const { clearSelectionWhenMissing = true } = options;
+  visibleCount.textContent = "Cargando...";
+  try {
+    const query = buildQuery(getFilters());
+    const response = await fetch(`/api/clients${query ? `?${query}` : ""}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        currentUser = null;
+        updateAuthUi();
+        throw new Error("Tu sesión venció. Volvé a ingresar.");
+      }
+      throw new Error(data?.error || "No se pudo cargar la lista de clientes");
+    }
+
+    clients = data.clients;
+    computeGlobalKpis(data.globalKpis);
+    renderTable();
+
+    if (clearSelectionWhenMissing && selectedId && !clients.some((client) => client.id === selectedId)) {
+      selectedId = null;
+      selectedClient = null;
+      showScreen("list");
+    }
+  } catch (error) {
+    console.error(error);
+    visibleCount.textContent = "Error al cargar";
+    notifyError("No pudimos cargar los clientes. Confirmá que el servidor local esté corriendo en localhost:3000.");
+  }
+}
+
+async function loadCalendar() {
+  try {
+    const query = buildQuery({ month: monthKey(calendarDate), ...getCalendarFilters() });
+    const response = await fetch(`/api/calendar?${query}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo cargar el calendario");
+    }
+    calendarMeetings = data.meetings || [];
+    renderCalendar();
+  } catch (error) {
+    console.error(error);
+    notifyError("No pudimos cargar el calendario de reuniones.");
+  }
+}
+
+async function loadVisits() {
+  try {
+    const response = await fetch(`/api/visits?${buildQuery(getVisitsFilters())}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo cargar la vista de visitas");
+    }
+    visits = data.visits || [];
+    renderVisitsTable();
+  } catch (error) {
+    console.error(error);
+    visitsVisibleCount.textContent = "Error al cargar";
+    notifyError("No pudimos cargar la vista de visitas.");
+  }
+}
+
+async function loadVisitsGrid() {
+  try {
+    const response = await fetch("/api/visits?status=Realizada");
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo cargar la grilla de visitas");
+    }
+    visitsGridData = data.visits || [];
+    renderVisitsGrid();
+  } catch (error) {
+    console.error(error);
+    visitsGridWrap.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>Error al cargar la grilla</h4>
+        <p>No pudimos cargar las visitas realizadas.</p>
+      </article>
+    `;
+  }
+}
+
+async function loadCurrentUser() {
+  try {
+    const response = await fetch("/api/auth/me");
+    if (!response.ok) {
+      currentUser = null;
+      updateAuthUi();
+      return false;
+    }
+
+    const data = await response.json();
+    currentUser = data.user;
+    updateAuthUi();
+    return true;
+  } catch (error) {
+    console.error("Error cargando sesión", error);
+    currentUser = null;
+    updateAuthUi();
+    return false;
+  }
+}
+
+async function loadClientDetail(clientId) {
+  try {
+    const response = await fetch(`/api/clients/${clientId}`);
+    if (!response.ok) {
+      if (response.status === 401) {
+        currentUser = null;
+        updateAuthUi();
+      }
+      selectedClient = null;
+      console.error("Detalle no disponible", clientId, response.status);
+      return false;
+    }
+    const data = await response.json();
+    selectedClient = data.client;
+    renderDetail();
+    return true;
+  } catch (error) {
+    console.error("Error cargando detalle del cliente", clientId, error);
+    selectedClient = null;
+    return false;
+  }
+}
+
+const filters = [riskFilter, segmentFilter, fixedFireFilter, extinguishersFilter, worksFilter];
+
+filters.forEach((input) => {
+  input.addEventListener("change", async () => {
+    await loadClients();
+  });
+});
+
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    loadClients();
+  }, 250);
+});
+
+backToList.addEventListener("click", () => {
+  if (selectedBranchView) {
+    selectedBranchView = null;
+    renderDetail();
+    syncUrlWithState("detail");
+    return;
+  }
+  showScreen("list");
+  syncUrlWithState("list");
+});
+
+backFromEdit.addEventListener("click", () => {
+  if (editMode === "edit" && selectedClient) {
+    showScreen("detail");
+    syncUrlWithState("detail");
+    return;
+  }
+  showScreen("list");
+  syncUrlWithState("list");
+});
+
+backFromMeeting.addEventListener("click", () => {
+  showScreen("detail");
+  syncUrlWithState("detail");
+});
+
+editMeetingFromDetailBtn.addEventListener("click", () => {
+  const meetings = Array.isArray(selectedClient?.meetings) ? selectedClient.meetings : [];
+  const meeting = meetings.find((item) => Number(item.id) === Number(editingMeetingId));
+  if (!meeting) return;
+  openMeetingScreen(meeting);
+});
+
+goToEditBtn.addEventListener("click", () => {
+  if (selectedBranchView) {
+    openBranchEditScreen(selectedBranchView);
+    return;
+  }
+  openEditScreen();
+});
+
+goToMeetingBtn.addEventListener("click", () => {
+  openMeetingScreen();
+});
+
+showClientsBtn.addEventListener("click", () => {
+  selectedBranchView = null;
+  showScreen("list");
+  syncUrlWithState("list");
+});
+
+showVisitsBtn.addEventListener("click", async () => {
+  await loadVisits();
+  showScreen("visits");
+  syncUrlWithState("visits");
+});
+
+showVisitsGridBtn.addEventListener("click", async () => {
+  await loadVisitsGrid();
+  showScreen("visits-grid");
+});
+
+showCalendarBtn.addEventListener("click", async () => {
+  calendarView = "month";
+  selectedCalendarDay = null;
+  await loadCalendar();
+  showScreen("calendar");
+  syncUrlWithState("calendar");
+});
+
+showUsersBtn.addEventListener("click", async () => {
+  await loadUsers();
+  showScreen("users");
+  syncUrlWithState("users");
+});
+
+showSettingsBtn.addEventListener("click", async () => {
+  await loadSettingsCatalogs();
+  showScreen("settings");
+  syncUrlWithState("settings");
+});
+
+openUsersFromSettingsBtn.addEventListener("click", async () => {
+  await loadUsers();
+  showScreen("users");
+  syncUrlWithState("users");
+});
+
+backToSettingsBtn.addEventListener("click", async () => {
+  await loadSettingsCatalogs();
+  showScreen("settings");
+  syncUrlWithState("settings");
+});
+
+document.querySelectorAll(".table-sort-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextKey = button.dataset.sortKey;
+    if (!nextKey) return;
+    if (visitsSort.key === nextKey) {
+      visitsSort.direction = visitsSort.direction === "asc" ? "desc" : "asc";
+    } else {
+      visitsSort.key = nextKey;
+      visitsSort.direction = nextKey === "scheduledFor" ? "desc" : "asc";
+    }
+    renderVisitsTable();
+  });
+});
+
+visitsSearchInput.addEventListener("input", () => {
+  clearTimeout(visitsSearchTimer);
+  visitsSearchTimer = setTimeout(() => {
+    loadVisits();
+  }, 250);
+});
+
+[visitsStatusFilter, visitsTypeFilter, visitsModalityFilter, visitsDateFromFilter, visitsDateToFilter].forEach((input) => {
+  input.addEventListener("change", () => {
+    loadVisits();
+  });
+});
+
+[visitsExecutiveFilter, visitsSupervisorFilter].forEach((input) => {
+  input.addEventListener("change", () => {
+    loadVisits();
+  });
+});
+
+visitsParticipantFilter.addEventListener("change", () => {
+  loadVisits();
+});
+
+exportVisitsBtn.addEventListener("click", async () => {
+  try {
+    exportVisitsBtn.disabled = true;
+    await exportVisits();
+  } catch (error) {
+    notifyError(error.message);
+  } finally {
+    exportVisitsBtn.disabled = false;
+  }
+});
+
+hideCompanyBtn.addEventListener("click", async () => {
+  if (!selectedClient || editEntityType !== "client" || editMode !== "edit") return;
+  const confirmed = window.confirm(`La compañía ${selectedClient.name} se va a ocultar del listado, pero no se va a borrar.`);
+  if (!confirmed) return;
+
+  try {
+    hideCompanyBtn.disabled = true;
+    await hideClient(selectedClient.id);
+    selectedId = null;
+    selectedClient = null;
+    selectedBranchView = null;
+    await loadClients({ clearSelectionWhenMissing: false });
+    showScreen("list");
+    editCompanyStatus.textContent = "";
+  } catch (error) {
+    editCompanyStatus.textContent = error.message;
+  } finally {
+    hideCompanyBtn.disabled = false;
+  }
+});
+
+prevMonthBtn.addEventListener("click", async () => {
+  calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
+  await loadCalendar();
+});
+
+nextMonthBtn.addEventListener("click", async () => {
+  calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
+  await loadCalendar();
+});
+
+calendarParticipantFilter.addEventListener("change", async () => {
+  calendarView = "month";
+  selectedCalendarDay = null;
+  await loadCalendar();
+});
+
+meetingParticipantsSearch.addEventListener("input", () => {
+  renderMeetingParticipantsPicker();
+});
+
+backToMonthBtn.addEventListener("click", () => {
+  calendarView = "month";
+  selectedCalendarDay = null;
+  renderCalendar();
+});
+
+addCompanyBtn.addEventListener("click", () => {
+  openCreateScreen();
+});
+
+addBranchBtn.addEventListener("click", () => {
+  openBranchCreateScreen();
+});
+
+userCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  createUserBtn.disabled = true;
+  createUserStatus.textContent = userFormMode === "edit" ? "Guardando..." : "Creando...";
+
+  try {
+    const payload = {
+      name: newUserName.value.trim(),
+      email: newUserEmail.value.trim(),
+      role: newUserRole.value,
+      password: newUserPassword.value
+    };
+
+    if (userFormMode === "edit") {
+      if (!payload.password) delete payload.password;
+      await updateUser(editingUserId, payload);
+      createUserStatus.textContent = "Usuario actualizado";
+    } else {
+      await createUser(payload);
+      createUserStatus.textContent = "Usuario creado";
+    }
+
+    await loadUsers();
+    await loadAssignmentOptions();
+    resetUserForm();
+  } catch (error) {
+    createUserStatus.textContent = error.message;
+  } finally {
+    createUserBtn.disabled = false;
+  }
+});
+
+cancelUserEditBtn.addEventListener("click", () => {
+  createUserStatus.textContent = "";
+  resetUserForm();
+});
+
+sectorForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  createSectorBtn.disabled = true;
+  sectorStatus.textContent = "Guardando...";
+
+  try {
+    await createSector(newSectorName.value.trim());
+    newSectorName.value = "";
+    sectorStatus.textContent = "Sector agregado";
+    await loadSectorOptions();
+  } catch (error) {
+    sectorStatus.textContent = error.message;
+  } finally {
+    createSectorBtn.disabled = false;
+  }
+});
+
+meetingTypeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  saveMeetingTypeBtn.disabled = true;
+  meetingTypeStatus.textContent = "Guardando...";
+
+  try {
+    await saveMeetingType({
+      value: meetingTypeValue.value.trim(),
+      label: meetingTypeLabel.value.trim(),
+      color: meetingTypeColor.value
+    });
+    await loadMeetingTypesConfig();
+    resetMeetingTypeForm();
+    meetingTypeStatus.textContent = "Tipo guardado";
+  } catch (error) {
+    meetingTypeStatus.textContent = error.message;
+  } finally {
+    saveMeetingTypeBtn.disabled = false;
+  }
+});
+
+cancelMeetingTypeEditBtn.addEventListener("click", () => {
+  resetMeetingTypeForm();
+});
+
+meetingReasonForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  saveMeetingReasonBtn.disabled = true;
+  meetingReasonStatus.textContent = "Guardando...";
+
+  try {
+    await saveMeetingReason({
+      name: meetingReasonName.value.trim()
+    });
+    await loadMeetingReasonsConfig();
+    resetMeetingReasonForm();
+    meetingReasonStatus.textContent = "Motivo guardado";
+  } catch (error) {
+    meetingReasonStatus.textContent = error.message;
+  } finally {
+    saveMeetingReasonBtn.disabled = false;
+  }
+});
+
+cancelMeetingReasonEditBtn.addEventListener("click", () => {
+  resetMeetingReasonForm();
+});
+
+[editFixedFire, editExtinguishers, editWorks].forEach((checkbox) => {
+  checkbox.addEventListener("change", () => {
+    syncSupervisorVisibility();
+    renderAccountRoleSummary();
+  });
+});
+
+[editManager, editSupervisorFixedFire, editSupervisorExtinguishers, editSupervisorWorks].forEach((select) => {
+  select.addEventListener("change", () => {
+    renderAccountRoleSummary();
+  });
+});
+
+meetingStatusSelect.addEventListener("change", () => {
+  syncMeetingCompletionFields();
+});
+
+meetingScope.addEventListener("change", () => {
+  syncMeetingContextBlocks();
+});
+
+companyEditForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!editSector.value) {
+    editCompanyStatus.textContent = "Seleccioná un sector válido.";
+    return;
+  }
+  if (editEntityType !== "branch" && !editCompanyType.value) {
+    editCompanyStatus.textContent = "Seleccioná si la compañía es local o global.";
+    return;
+  }
+  if (editEntityType !== "branch" && !editCountry.value) {
+    editCompanyStatus.textContent = "Seleccioná el país de la compañía.";
+    return;
+  }
+  if (editEntityType !== "branch" && !editAccountStage.value) {
+    editCompanyStatus.textContent = "Seleccioná si la compañía es activa o prospecto.";
+    return;
+  }
+  if (editFixedFire.checked && !editSupervisorFixedFire.value) {
+    editCompanyStatus.textContent = "Debes asignar un supervisor IFCI.";
+    return;
+  }
+  if (editExtinguishers.checked && !editSupervisorExtinguishers.value) {
+    editCompanyStatus.textContent = "Debes asignar un supervisor EXT.";
+    return;
+  }
+  if (editWorks.checked && !editSupervisorWorks.value) {
+    editCompanyStatus.textContent = "Debes asignar un supervisor Obra.";
+    return;
+  }
+
+  const payload = {
+    name: editName.value.trim(),
+    sector: editSector.value.trim(),
+    risk: editRisk.value,
+    segment: editSegment.value,
+    services: {
+      fixedFire: editFixedFire.checked,
+      extinguishers: editExtinguishers.checked,
+      works: editWorks.checked
+    },
+    supervisors: {
+      fixedFire: { userId: editSupervisorFixedFire.value ? Number(editSupervisorFixedFire.value) : null },
+      extinguishers: { userId: editSupervisorExtinguishers.value ? Number(editSupervisorExtinguishers.value) : null },
+      works: { userId: editSupervisorWorks.value ? Number(editSupervisorWorks.value) : null }
+    },
+    notes: editNotes.value.trim()
+  };
+
+  if (editEntityType !== "branch") {
+    payload.companyType = editCompanyType.value;
+    payload.country = editCountry.value;
+    payload.accountStage = editAccountStage.value;
+    payload.executiveUserId = editManager.value ? Number(editManager.value) : null;
+  }
+
+  saveCompanyBtn.disabled = true;
+  editCompanyStatus.textContent = "Guardando...";
+
+  try {
+    const isCreate = editMode === "create";
+    const isBranch = editEntityType === "branch";
+    const endpoint = isBranch
+      ? isCreate
+        ? `/api/clients/${selectedClient.id}/branches`
+        : `/api/clients/${selectedClient.id}/branches/${editingBranchId}`
+      : isCreate
+        ? "/api/clients"
+        : `/api/clients/${selectedClient.id}`;
+    const method = isCreate ? "POST" : "PATCH";
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData?.error || `No se pudo guardar la ${isBranch ? "sucursal" : "compañía"}`);
+    }
+
+    selectedId = selectedClient?.id || responseData.client?.id;
+    await loadClients({ clearSelectionWhenMissing: false });
+    await loadClientDetail(selectedId);
+    renderTable();
+    editCompanyStatus.textContent = "Cambios guardados correctamente";
+    showScreen("detail");
+    syncUrlWithState("detail");
+  } catch (error) {
+    editCompanyStatus.textContent = error.message;
+  } finally {
+    saveCompanyBtn.disabled = false;
+  }
+});
+
+meetingForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!selectedClient) return;
+
+  const participantUserIds = normalizeParticipantIds(selectedParticipantUserIds);
+  const participantNames = getParticipantNamesFromIds(participantUserIds);
+
+  const payload = {
+    kind: meetingKind.value,
+    subject: meetingSubject.value.trim(),
+    objective: meetingObjective.value.trim(),
+    scheduledFor: meetingDate.value,
+    modality: meetingModality.value,
+    branchId: meetingScope.value.startsWith("branch:") ? Number(meetingScope.value.split(":")[1]) : null,
+    participants: participantNames.join(", "),
+    participantUserIds,
+    contactName: meetingContactName.value.trim(),
+    contactRole: meetingContactRole.value.trim(),
+    nextMeetingDate: meetingNextDate.value,
+    status: meetingStatusSelect.value,
+    minutes: meetingMinutes.value.trim(),
+    findings: meetingNegotiationStatus.value.trim(),
+    activeNegotiationsStatus: meetingNegotiationStatus.value.trim(),
+    opportunities: meetingOpportunities.value.trim(),
+    substituteRecovery: meetingSubstituteRecovery.value.trim(),
+    globalContacts: meetingGlobalContacts.value.trim(),
+    serviceStatus: meetingServiceStatus.value.trim()
+  };
+
+  if (
+    !payload.kind ||
+    !payload.subject ||
+    !payload.objective ||
+    !payload.scheduledFor ||
+    !payload.modality ||
+    !meetingScope.value ||
+    !payload.participants ||
+    !payload.contactName ||
+    !payload.contactRole
+  ) {
+    meetingStatus.textContent = "Completá tipo, motivo, objetivo, fecha, modalidad, alcance, participantes, contacto y función.";
+    return;
+  }
+
+  saveMeetingBtn.disabled = true;
+  meetingStatus.textContent = "Guardando reunión...";
+
+  try {
+    const endpoint =
+      meetingMode === "create"
+        ? `/api/clients/${selectedClient.id}/meetings`
+        : `/api/clients/${selectedClient.id}/meetings/${editingMeetingId}`;
+    const method = meetingMode === "create" ? "POST" : "PATCH";
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData?.error || "No se pudo guardar la reunión");
+    }
+
+    await loadClients({ clearSelectionWhenMissing: false });
+    await loadClientDetail(selectedClient.id);
+    await loadCalendar();
+    renderTable();
+    meetingStatus.textContent = "Reunión guardada correctamente";
+    showScreen("detail");
+    syncUrlWithState("detail");
+  } catch (error) {
+    meetingStatus.textContent = error.message;
+  } finally {
+    saveMeetingBtn.disabled = false;
+  }
+});
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  loginSubmit.disabled = true;
+  loginStatus.textContent = "Ingresando...";
+
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: loginEmail.value.trim(),
+        password: loginPassword.value
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo iniciar sesión");
+    }
+
+    currentUser = data.user;
+    updateAuthUi();
+    loginStatus.textContent = "";
+    loginPassword.value = "";
+    showScreen("list");
+    await loadCatalogs();
+    await loadAssignmentOptions();
+    await loadSettingsCatalogs();
+    await loadUsers();
+    await loadClients();
+    await loadCalendar();
+    await applyRouteFromHash();
+  } catch (error) {
+    loginStatus.textContent = error.message;
+  } finally {
+    loginSubmit.disabled = false;
+  }
+});
+
+logoutBtn.addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  currentUser = null;
+  selectedId = null;
+  selectedClient = null;
+  clients = [];
+  users = [];
+  calendarMeetings = [];
+  updateAuthUi();
+  showScreen("list");
+  replaceHash("#/clientes");
+});
+
+window.addEventListener("hashchange", async () => {
+  if (suppressHashRouting) return;
+  await applyRouteFromHash();
+});
+
+showScreen("list");
+updateAuthUi();
+renderMeetingTypeColorOptions();
+loadCurrentUser().then(async (loggedIn) => {
+  if (loggedIn) {
+    await loadCatalogs();
+    await loadAssignmentOptions();
+    await loadSettingsCatalogs();
+    await loadUsers();
+    await loadClients();
+    await loadCalendar();
+    await applyRouteFromHash();
+  }
+});

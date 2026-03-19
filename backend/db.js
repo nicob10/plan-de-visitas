@@ -530,6 +530,8 @@ async function initDb() {
 
   await query(`
     ALTER TABLE client_branches
+      ADD COLUMN IF NOT EXISTS executive_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -557,6 +559,7 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS global_contacts TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS service_status TEXT NOT NULL DEFAULT '';
+    CREATE INDEX IF NOT EXISTS idx_client_branches_executive ON client_branches(executive_user_id);
   `);
 
   await query(`

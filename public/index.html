@@ -238,6 +238,23 @@
               <p class="section-copy">Los usuarios con rol Ejecutivo serán asignables a compañías. Los supervisores se asignan por servicio activo.</p>
             </div>
           </div>
+          <div class="settings-import users-import-panel">
+            <div>
+              <p class="settings-kicker">Importación</p>
+              <h3>Importar usuarios desde Excel</h3>
+              <p class="section-copy">Cargá usuarios del sistema en lote con nombre, email, rol y contraseña inicial.</p>
+            </div>
+            <div class="settings-import-actions">
+              <button id="downloadUsersTemplateBtn" class="secondary-btn" type="button">Descargar plantilla</button>
+              <label class="file-upload-btn">
+                <input id="usersImportFile" type="file" accept=".xlsx,.xls" />
+                <span>Seleccionar Excel</span>
+              </label>
+              <button id="importUsersBtn" class="primary-btn" type="button">Importar usuarios</button>
+            </div>
+            <span id="usersImportStatus" aria-live="polite"></span>
+            <div id="usersImportDetails" class="import-result-details hidden"></div>
+          </div>
           <form id="userCreateForm" class="company-edit-form">
             <div class="panel-title-row compact-row">
               <h3 id="userFormTitle">Nuevo usuario</h3>
@@ -302,12 +319,7 @@
               <button id="nextMonthBtn" class="back-btn" type="button">Mes siguiente →</button>
             </div>
           </div>
-          <div class="legend-row">
-            <span class="meeting-type-badge yellow">Comercial</span>
-            <span class="meeting-type-badge orange">Gerencia Comercial</span>
-            <span class="meeting-type-badge blue">Directorio</span>
-            <span class="meeting-type-badge purple">Operaciones</span>
-          </div>
+          <div id="calendarLegend" class="legend-row"></div>
           <div id="calendarGrid" class="calendar-grid"></div>
           <div id="calendarDayView" class="calendar-day-view hidden"></div>
         </div>
@@ -370,6 +382,25 @@
                   <tbody id="sectorsTableBody"></tbody>
                 </table>
               </div>
+
+              <div class="settings-import">
+                <div>
+                  <p class="settings-kicker">Importación</p>
+                  <h3>Importar clientes desde Excel</h3>
+                  <p class="section-copy">Usá una plantilla Excel para dar de alta clientes en bloque con sus datos comerciales básicos.</p>
+                </div>
+                <div class="settings-import-actions">
+                  <button id="downloadClientsTemplateBtn" class="secondary-btn" type="button">Descargar plantilla</button>
+                  <label class="file-upload-btn">
+                    <input id="clientsImportFile" type="file" accept=".xlsx,.xls" />
+                    <span>Seleccionar Excel</span>
+                  </label>
+                  <button id="importClientsBtn" class="primary-btn" type="button">Importar clientes</button>
+                </div>
+                <span id="clientsImportStatus" aria-live="polite"></span>
+                <div id="clientsImportDetails" class="import-result-details hidden"></div>
+              </div>
+
             </section>
 
             <section class="settings-card settings-card-wide">

@@ -409,6 +409,80 @@ textarea:focus {
   white-space: normal;
 }
 
+.settings-import {
+  margin: 0 1rem 1rem;
+  padding: 1rem;
+  border: 1px dashed #e7c7c8;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffefe 0%, #fff6f6 100%);
+  display: grid;
+  gap: 0.8rem;
+}
+
+.users-import-panel {
+  margin: 0 0 1rem;
+}
+
+.settings-import h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.settings-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.file-upload-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+}
+
+.file-upload-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-upload-btn span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 16px;
+  font-weight: 800;
+  padding: 0.62rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  color: #8f1f22;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 245, 245, 0.9) 100%);
+  box-shadow: 0 6px 14px rgba(76, 20, 20, 0.08);
+}
+
+.import-result-details {
+  border-radius: 16px;
+  border: 1px solid rgba(185, 71, 73, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.85rem 0.95rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.import-result-details strong {
+  color: #7d1f23;
+  font-size: 0.92rem;
+}
+
+.import-result-details ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  color: #6f5556;
+  font-size: 0.9rem;
+}
+
 .visits-grid-wrap {
   overflow: auto;
   border: 1px solid #e8dada;

@@ -138,6 +138,31 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function isSettingsAdminUser(user) {
+  return (
+    String(user?.email || "").trim().toLowerCase() === "nicolas@maxiseguridad.com"
+  );
+}
+
+async function requireSettingsAdmin(req, res, next) {
+  const { rows } = await query("SELECT id, name, email, role FROM users WHERE id = $1", [req.session.userId]);
+  const user = rows[0];
+
+  if (!user) {
+    req.session.destroy(() => {});
+    res.status(401).json({ error: "Sesión inválida" });
+    return;
+  }
+
+  if (!isSettingsAdminUser(user)) {
+    res.status(403).json({ error: "No tenés permisos para acceder a esta sección" });
+    return;
+  }
+
+  req.authUser = user;
+  next();
+}
+
 function toClientObject(row) {
   return {
     id: row.id,
@@ -271,6 +296,111 @@ function buildBranchSelectQuery(whereClause = "", orderClause = "ORDER BY client
     ${whereClause}
     ${orderClause}
   `;
+}
+
+function parseBooleanCell(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["si", "sí", "true", "1", "x"].includes(normalized);
+}
+
+async function findUserByEmailOrName(value, expectedRole = null) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const { rows } = await query(
+    `
+    SELECT id, name, email, role
+    FROM users
+    WHERE lower(email) = lower($1) OR lower(name) = lower($1)
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [normalized]
+  );
+  const user = rows[0] || null;
+  if (!user) return null;
+  if (expectedRole && user.role !== expectedRole) return null;
+  return user;
+}
+
+async function createClientRecord(payload) {
+  const nextPositionResult = await query("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM clients");
+  const nextPosition = nextPositionResult.rows[0].next;
+  const {
+    name,
+    billing,
+    sector,
+    companyType,
+    country,
+    accountStage,
+    executiveUserId,
+    risk,
+    segment,
+    services,
+    supervisors,
+    notes
+  } = payload;
+
+  const normalizedBilling = typeof billing === "number" && !Number.isNaN(billing) ? billing : 0;
+  const executiveResult = await query("SELECT name FROM users WHERE id = $1", [Number(executiveUserId)]);
+  const executiveName = executiveResult.rows[0]?.name || "";
+  const fixedFireSupervisorId = services.fixedFire ? normalizeNullableUserId(supervisors.fixedFire.userId) : null;
+  const extinguishersSupervisorId = services.extinguishers ? normalizeNullableUserId(supervisors.extinguishers.userId) : null;
+  const worksSupervisorId = services.works ? normalizeNullableUserId(supervisors.works.userId) : null;
+
+  const createdResult = await query(
+    `
+    INSERT INTO clients (
+      position, name, billing_2025, sector, company_type, country, account_stage, manager, executive_user_id, risk, segment,
+      service_fixed_fire, service_extinguishers, service_works,
+      wallet_share, nps, open_opportunities, notes,
+      supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+    RETURNING *
+    `,
+    [
+      nextPosition,
+      name.trim(),
+      normalizedBilling,
+      sector.trim(),
+      companyType,
+      country,
+      accountStage,
+      executiveName,
+      Number(executiveUserId),
+      risk,
+      segment,
+      services.fixedFire,
+      services.extinguishers,
+      services.works,
+      "",
+      0,
+      0,
+      notes.trim(),
+      fixedFireSupervisorId,
+      extinguishersSupervisorId,
+      worksSupervisorId
+    ]
+  );
+
+  const selectedCreated = await query(buildClientSelectQuery("WHERE clients.id = $1", ""), [createdResult.rows[0].id]);
+  return buildClientResponse(selectedCreated.rows[0]);
+}
+
+async function createUserRecord(payload) {
+  const { values } = validateUserPayload(payload, { requirePassword: true });
+  const result = await query(
+    `
+    INSERT INTO users (name, email, password_hash, role)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, name, email, role, created_at
+    `,
+    [values.name, values.email, hashPassword(values.password), values.role]
+  );
+
+  return {
+    ...sanitizeUser(result.rows[0]),
+    createdAt: result.rows[0].created_at
+  };
 }
 
 async function getUsersByRoles(roles) {
@@ -998,7 +1128,12 @@ app.get(
       return;
     }
 
-    res.json({ user: sanitizeUser(user) });
+    res.json({
+      user: {
+        ...sanitizeUser(user),
+        canManageSettings: isSettingsAdminUser(user)
+      }
+    });
   })
 );
 
@@ -1022,7 +1157,12 @@ app.post(
     }
 
     req.session.userId = user.id;
-    res.json({ user: sanitizeUser(user) });
+    res.json({
+      user: {
+        ...sanitizeUser(user),
+        canManageSettings: isSettingsAdminUser(user)
+      }
+    });
   })
 );
 
@@ -1042,6 +1182,7 @@ app.get("/api/meeting-types", (_req, res) => {
 });
 
 app.use("/api", requireAuth);
+app.use("/api/settings", requireSettingsAdmin);
 
 app.get(
   "/api/settings/sectors",
@@ -1061,6 +1202,214 @@ app.get(
   "/api/settings/meeting-reasons",
   asyncHandler(async (_req, res) => {
     res.json({ meetingReasons: getMeetingReasons() });
+  })
+);
+
+app.get(
+  "/api/settings/clients-import-template",
+  asyncHandler(async (_req, res) => {
+    const rows = [
+      {
+        name: "Cliente Ejemplo",
+        sector: "Energía",
+        companyType: "Local",
+        country: "Argentina",
+        accountStage: "Activa",
+        executive: "comercial@maxi.local",
+        risk: "Medio",
+        segment: "B",
+        fixedFire: "No",
+        extinguishers: "Si",
+        works: "No",
+        supervisorIfci: "",
+        supervisorExt: "ext@maxi.local",
+        supervisorWorks: "",
+        notes: "Importado desde Excel"
+      }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="plantilla-clientes.xlsx"');
+    res.send(buffer);
+  })
+);
+
+app.get(
+  "/api/settings/users-import-template",
+  asyncHandler(async (_req, res) => {
+    const rows = [
+      {
+        name: "Nuevo Comercial",
+        email: "nuevo.comercial@empresa.com",
+        role: USER_ROLES.EXECUTIVE,
+        password: "Temporal1234"
+      }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="plantilla-usuarios.xlsx"');
+    res.send(buffer);
+  })
+);
+
+app.post(
+  "/api/settings/clients-import",
+  asyncHandler(async (req, res) => {
+    const fileData = String(req.body?.fileData || "").trim();
+    if (!fileData) {
+      res.status(400).json({ error: "Debes adjuntar un archivo Excel" });
+      return;
+    }
+
+    const workbook = XLSX.read(Buffer.from(fileData, "base64"), { type: "buffer" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    if (!rows.length) {
+      res.status(400).json({ error: "El archivo no tiene filas para importar" });
+      return;
+    }
+
+    let createdCount = 0;
+    const errors = [];
+
+    for (const [index, row] of rows.entries()) {
+      const line = index + 2;
+      const executive = await findUserByEmailOrName(row.executive, EXECUTIVE_ROLE);
+      if (!executive) {
+        errors.push(`Fila ${line}: no se encontró un Ejecutivo válido en "executive"`);
+        continue;
+      }
+
+      const services = {
+        fixedFire: parseBooleanCell(row.fixedFire),
+        extinguishers: parseBooleanCell(row.extinguishers),
+        works: parseBooleanCell(row.works)
+      };
+
+      const supervisors = {
+        fixedFire: { userId: null },
+        extinguishers: { userId: null },
+        works: { userId: null }
+      };
+
+      if (services.fixedFire) {
+        const supervisor = await findUserByEmailOrName(row.supervisorIfci, USER_ROLES.SUPERVISOR_IFCI);
+        supervisors.fixedFire.userId = supervisor?.id || null;
+      }
+      if (services.extinguishers) {
+        const supervisor = await findUserByEmailOrName(row.supervisorExt, USER_ROLES.SUPERVISOR_EXT);
+        supervisors.extinguishers.userId = supervisor?.id || null;
+      }
+      if (services.works) {
+        const supervisor = await findUserByEmailOrName(row.supervisorWorks, USER_ROLES.SUPERVISOR_WORKS);
+        supervisors.works.userId = supervisor?.id || null;
+      }
+
+      const payload = {
+        name: String(row.name || "").trim(),
+        billing: 0,
+        sector: String(row.sector || "").trim(),
+        companyType: String(row.companyType || "Local").trim() || "Local",
+        country: String(row.country || "Argentina").trim() || "Argentina",
+        accountStage: String(row.accountStage || "Activa").trim() || "Activa",
+        executiveUserId: executive.id,
+        risk: String(row.risk || "Bajo").trim() || "Bajo",
+        segment: String(row.segment || "C").trim() || "C",
+        services,
+        supervisors,
+        notes: String(row.notes || "").trim()
+      };
+
+      const duplicateResult = await query("SELECT id FROM clients WHERE lower(name) = lower($1) LIMIT 1", [payload.name]);
+      if (duplicateResult.rows[0]) {
+        errors.push(`Fila ${line}: ya existe un cliente con el nombre "${payload.name}"`);
+        continue;
+      }
+
+      const validationErrors = await validateClientPayload(payload);
+      if (validationErrors.length) {
+        errors.push(`Fila ${line}: ${validationErrors[0]}`);
+        continue;
+      }
+
+      await createClientRecord(payload);
+      createdCount += 1;
+    }
+
+    res.json({
+      createdCount,
+      errorCount: errors.length,
+      errors
+    });
+  })
+);
+
+app.post(
+  "/api/settings/users-import",
+  asyncHandler(async (req, res) => {
+    const fileData = String(req.body?.fileData || "").trim();
+    if (!fileData) {
+      res.status(400).json({ error: "Debes adjuntar un archivo Excel" });
+      return;
+    }
+
+    const workbook = XLSX.read(Buffer.from(fileData, "base64"), { type: "buffer" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    if (!rows.length) {
+      res.status(400).json({ error: "El archivo no tiene filas para importar" });
+      return;
+    }
+
+    let createdCount = 0;
+    const errors = [];
+
+    for (const [index, row] of rows.entries()) {
+      const line = index + 2;
+      const payload = {
+        name: String(row.name || "").trim(),
+        email: String(row.email || "").trim(),
+        role: String(row.role || "").trim(),
+        password: String(row.password || "").trim()
+      };
+
+      const validation = validateUserPayload(payload, { requirePassword: true });
+      if (validation.errors.length) {
+        errors.push(`Fila ${line}: ${validation.errors[0]}`);
+        continue;
+      }
+
+      const existing = await query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [payload.email]);
+      if (existing.rows[0]) {
+        errors.push(`Fila ${line}: ya existe un usuario con el email "${payload.email}"`);
+        continue;
+      }
+
+      try {
+        await createUserRecord(payload);
+        createdCount += 1;
+      } catch (error) {
+        if (error.code === "23505") {
+          errors.push(`Fila ${line}: ya existe un usuario con el email "${payload.email}"`);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    res.json({
+      createdCount,
+      errorCount: errors.length,
+      errors
+    });
   })
 );
 
@@ -1308,6 +1657,7 @@ app.delete(
 
 app.get(
   "/api/users",
+  requireSettingsAdmin,
   asyncHandler(async (_req, res) => {
     const { rows } = await query(
       `
@@ -1329,6 +1679,7 @@ app.get(
 
 app.post(
   "/api/users",
+  requireSettingsAdmin,
   asyncHandler(async (req, res) => {
     const { errors, values } = validateUserPayload(req.body, { requirePassword: true });
     if (errors.length) {
@@ -1337,20 +1688,8 @@ app.post(
     }
 
     try {
-      const result = await query(
-        `
-        INSERT INTO users (name, email, password_hash, role)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, email, role, created_at
-        `,
-        [values.name, values.email, hashPassword(values.password), values.role]
-      );
-
       res.status(201).json({
-        user: {
-          ...sanitizeUser(result.rows[0]),
-          createdAt: result.rows[0].created_at
-        }
+        user: await createUserRecord(values)
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -1364,6 +1703,7 @@ app.post(
 
 app.patch(
   "/api/users/:id",
+  requireSettingsAdmin,
   asyncHandler(async (req, res) => {
     const userId = Number(req.params.id);
     if (!Number.isInteger(userId) || userId <= 0) {
@@ -1430,6 +1770,7 @@ app.patch(
 
 app.delete(
   "/api/users/:id",
+  requireSettingsAdmin,
   asyncHandler(async (req, res) => {
     const userId = Number(req.params.id);
     if (!Number.isInteger(userId) || userId <= 0) {
@@ -1749,67 +2090,7 @@ app.post(
       return;
     }
 
-    const nextPositionResult = await query("SELECT COALESCE(MAX(position), 0) + 1 AS next FROM clients");
-    const nextPosition = nextPositionResult.rows[0].next;
-    const {
-      name,
-      billing,
-      sector,
-      companyType,
-      country,
-      accountStage,
-      executiveUserId,
-      risk,
-      segment,
-      services,
-      supervisors,
-      notes
-    } = payload;
-
-    const normalizedBilling = typeof billing === "number" && !Number.isNaN(billing) ? billing : 0;
-    const executiveResult = await query("SELECT name FROM users WHERE id = $1", [Number(executiveUserId)]);
-    const executiveName = executiveResult.rows[0]?.name || "";
-    const fixedFireSupervisorId = services.fixedFire ? normalizeNullableUserId(supervisors.fixedFire.userId) : null;
-    const extinguishersSupervisorId = services.extinguishers ? normalizeNullableUserId(supervisors.extinguishers.userId) : null;
-    const worksSupervisorId = services.works ? normalizeNullableUserId(supervisors.works.userId) : null;
-
-    const createdResult = await query(
-      `
-      INSERT INTO clients (
-        position, name, billing_2025, sector, company_type, country, account_stage, manager, executive_user_id, risk, segment,
-        service_fixed_fire, service_extinguishers, service_works,
-        wallet_share, nps, open_opportunities, notes,
-        supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-      RETURNING *
-      `,
-      [
-        nextPosition,
-        name.trim(),
-        normalizedBilling,
-        sector.trim(),
-        companyType,
-        country,
-        accountStage,
-        executiveName,
-        Number(executiveUserId),
-        risk,
-        segment,
-        services.fixedFire,
-        services.extinguishers,
-        services.works,
-        "",
-        0,
-        0,
-        notes.trim(),
-        fixedFireSupervisorId,
-        extinguishersSupervisorId,
-        worksSupervisorId
-      ]
-    );
-
-    const selectedCreated = await query(buildClientSelectQuery("WHERE clients.id = $1", ""), [createdResult.rows[0].id]);
-    res.status(201).json({ client: await buildClientResponse(selectedCreated.rows[0]) });
+    res.status(201).json({ client: await createClientRecord(payload) });
   })
 );
 

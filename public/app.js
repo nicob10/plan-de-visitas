@@ -56,6 +56,16 @@ const newSectorName = document.getElementById("newSectorName");
 const createSectorBtn = document.getElementById("createSectorBtn");
 const sectorStatus = document.getElementById("sectorStatus");
 const sectorsTableBody = document.getElementById("sectorsTableBody");
+const downloadClientsTemplateBtn = document.getElementById("downloadClientsTemplateBtn");
+const clientsImportFile = document.getElementById("clientsImportFile");
+const importClientsBtn = document.getElementById("importClientsBtn");
+const clientsImportStatus = document.getElementById("clientsImportStatus");
+const clientsImportDetails = document.getElementById("clientsImportDetails");
+const downloadUsersTemplateBtn = document.getElementById("downloadUsersTemplateBtn");
+const usersImportFile = document.getElementById("usersImportFile");
+const importUsersBtn = document.getElementById("importUsersBtn");
+const usersImportStatus = document.getElementById("usersImportStatus");
+const usersImportDetails = document.getElementById("usersImportDetails");
 const meetingTypeForm = document.getElementById("meetingTypeForm");
 const meetingTypeValue = document.getElementById("meetingTypeValue");
 const meetingTypeLabel = document.getElementById("meetingTypeLabel");
@@ -96,6 +106,7 @@ const usersScreen = document.getElementById("usersScreen");
 const settingsScreen = document.getElementById("settingsScreen");
 const visitsGridWrap = document.getElementById("visitsGridWrap");
 const visitsGridLegend = document.getElementById("visitsGridLegend");
+const calendarLegend = document.getElementById("calendarLegend");
 
 const backToList = document.getElementById("backToList");
 const backFromEdit = document.getElementById("backFromEdit");
@@ -223,6 +234,11 @@ let assignmentOptions = {
   }
 };
 
+function canAccessSettings() {
+  const email = String(currentUser?.email || "").trim().toLowerCase();
+  return !!currentUser?.canManageSettings || email === "nicolas@maxiseguridad.com";
+}
+
 function notifyError(message) {
   window.alert(message);
 }
@@ -231,6 +247,8 @@ function updateAuthUi() {
   const loggedIn = !!currentUser;
   loginScreen.classList.toggle("hidden", loggedIn);
   appContent.classList.toggle("hidden", !loggedIn);
+  showSettingsBtn.classList.toggle("hidden", !loggedIn || !canAccessSettings());
+  showUsersBtn.classList.toggle("hidden", !loggedIn || !canAccessSettings());
   currentUserBadge.innerHTML = loggedIn
     ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
     : "";
@@ -683,24 +701,25 @@ function syncSupervisorVisibility() {
 }
 
 function showScreen(screen) {
-  listScreen.classList.toggle("hidden", screen !== "list");
-  visitsScreen.classList.toggle("hidden", screen !== "visits");
-  detailScreen.classList.toggle("hidden", screen !== "detail");
-  editScreen.classList.toggle("hidden", screen !== "edit");
-  meetingScreen.classList.toggle("hidden", screen !== "meeting");
-  calendarScreen.classList.toggle("hidden", screen !== "calendar");
-  visitsGridScreen.classList.toggle("hidden", screen !== "visits-grid");
-  usersScreen.classList.toggle("hidden", screen !== "users");
-  settingsScreen.classList.toggle("hidden", screen !== "settings");
+  const nextScreen = !canAccessSettings() && (screen === "settings" || screen === "users") ? "list" : screen;
+  listScreen.classList.toggle("hidden", nextScreen !== "list");
+  visitsScreen.classList.toggle("hidden", nextScreen !== "visits");
+  detailScreen.classList.toggle("hidden", nextScreen !== "detail");
+  editScreen.classList.toggle("hidden", nextScreen !== "edit");
+  meetingScreen.classList.toggle("hidden", nextScreen !== "meeting");
+  calendarScreen.classList.toggle("hidden", nextScreen !== "calendar");
+  visitsGridScreen.classList.toggle("hidden", nextScreen !== "visits-grid");
+  usersScreen.classList.toggle("hidden", nextScreen !== "users");
+  settingsScreen.classList.toggle("hidden", nextScreen !== "settings");
   showClientsBtn.classList.toggle(
     "active-view",
-    screen === "list" || screen === "detail" || screen === "edit" || screen === "meeting"
+    nextScreen === "list" || nextScreen === "detail" || nextScreen === "edit" || nextScreen === "meeting"
   );
-  showVisitsBtn.classList.toggle("active-view", screen === "visits");
-  showVisitsGridBtn.classList.toggle("active-view", screen === "visits-grid");
-  showCalendarBtn.classList.toggle("active-view", screen === "calendar");
-  showUsersBtn.classList.toggle("active-view", screen === "users");
-  showSettingsBtn.classList.toggle("active-view", screen === "settings");
+  showVisitsBtn.classList.toggle("active-view", nextScreen === "visits");
+  showVisitsGridBtn.classList.toggle("active-view", nextScreen === "visits-grid");
+  showCalendarBtn.classList.toggle("active-view", nextScreen === "calendar");
+  showUsersBtn.classList.toggle("active-view", nextScreen === "users");
+  showSettingsBtn.classList.toggle("active-view", nextScreen === "settings");
 }
 
 function buildCompanyHash(clientId, branchId = null) {
@@ -732,10 +751,18 @@ function syncUrlWithState(screen) {
     return;
   }
   if (screen === "users") {
+    if (!canAccessSettings()) {
+      replaceHash("#/clientes");
+      return;
+    }
     replaceHash("#/configuracion/usuarios");
     return;
   }
   if (screen === "settings") {
+    if (!canAccessSettings()) {
+      replaceHash("#/clientes");
+      return;
+    }
     replaceHash("#/configuracion");
     return;
   }
@@ -815,12 +842,22 @@ async function applyRouteFromHash() {
   }
 
   if (route.screen === "users") {
+    if (!canAccessSettings()) {
+      showScreen("list");
+      replaceHash("#/clientes");
+      return;
+    }
     await loadUsers();
     showScreen("users");
     return;
   }
 
   if (route.screen === "settings") {
+    if (!canAccessSettings()) {
+      showScreen("list");
+      replaceHash("#/clientes");
+      return;
+    }
     await loadSettingsCatalogs();
     showScreen("settings");
     return;
@@ -938,6 +975,12 @@ function formatGridDate(dateValue) {
 
 function renderVisitsGridLegend() {
   visitsGridLegend.innerHTML = meetingTypes
+    .map((type) => `<span class="meeting-type-badge ${type.color}">${type.label}</span>`)
+    .join("");
+}
+
+function renderCalendarLegend() {
+  calendarLegend.innerHTML = meetingTypes
     .map((type) => `<span class="meeting-type-badge ${type.color}">${type.label}</span>`)
     .join("");
 }
@@ -1187,6 +1230,7 @@ function renderBranchCard(branch) {
 }
 
 function renderCalendar() {
+  renderCalendarLegend();
   calendarMonthLabel.textContent =
     calendarView === "day" && selectedCalendarDay ? fullDateLabel(selectedCalendarDay) : monthLabel(calendarDate);
   calendarGrid.innerHTML = "";
@@ -1618,6 +1662,112 @@ async function deleteMeetingReason(id) {
     throw new Error(data?.error || "No se pudo eliminar el motivo de reunión");
   }
   return data.meetingReasons || [];
+}
+
+async function downloadClientsTemplate() {
+  const response = await fetch("/api/settings/clients-import-template");
+  if (!response.ok) {
+    throw new Error("No se pudo descargar la plantilla");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "plantilla-clientes.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importClientsFromExcel(file) {
+  const fileData = await file.arrayBuffer();
+  const bytes = new Uint8Array(fileData);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const base64 = window.btoa(binary);
+
+  const response = await fetch("/api/settings/clients-import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileData: base64
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo importar el archivo");
+  }
+  return data;
+}
+
+async function downloadUsersTemplate() {
+  const response = await fetch("/api/settings/users-import-template");
+  if (!response.ok) {
+    throw new Error("No se pudo descargar la plantilla de usuarios");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "plantilla-usuarios.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importUsersFromExcel(file) {
+  const fileData = await file.arrayBuffer();
+  const bytes = new Uint8Array(fileData);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const base64 = window.btoa(binary);
+
+  const response = await fetch("/api/settings/users-import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileData: base64
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo importar el archivo de usuarios");
+  }
+  return data;
+}
+
+function clearImportFeedback(statusNode, detailsNode) {
+  statusNode.textContent = "";
+  detailsNode.innerHTML = "";
+  detailsNode.classList.add("hidden");
+}
+
+function renderImportFeedback(statusNode, detailsNode, result, entityLabel) {
+  statusNode.textContent = `Importación finalizada: ${result.createdCount} ${entityLabel} creados${result.errorCount ? `, ${result.errorCount} con error` : ""}.`;
+  const errors = Array.isArray(result.errors) ? result.errors : [];
+  if (!errors.length) {
+    detailsNode.innerHTML = "";
+    detailsNode.classList.add("hidden");
+    return;
+  }
+
+  detailsNode.classList.remove("hidden");
+  const visibleErrors = errors.slice(0, 8);
+  detailsNode.innerHTML = `
+    <strong>Filas con observaciones</strong>
+    <ul>
+      ${visibleErrors.map((error) => `<li>${error}</li>`).join("")}
+    </ul>
+    ${errors.length > visibleErrors.length ? `<span>Y ${errors.length - visibleErrors.length} más.</span>` : ""}
+  `;
 }
 
 function resetUserForm() {
@@ -2165,27 +2315,106 @@ showCalendarBtn.addEventListener("click", async () => {
 });
 
 showUsersBtn.addEventListener("click", async () => {
+  if (!canAccessSettings()) return;
   await loadUsers();
   showScreen("users");
   syncUrlWithState("users");
 });
 
 showSettingsBtn.addEventListener("click", async () => {
+  if (!canAccessSettings()) return;
   await loadSettingsCatalogs();
   showScreen("settings");
   syncUrlWithState("settings");
 });
 
 openUsersFromSettingsBtn.addEventListener("click", async () => {
+  if (!canAccessSettings()) return;
   await loadUsers();
   showScreen("users");
   syncUrlWithState("users");
 });
 
 backToSettingsBtn.addEventListener("click", async () => {
+  if (!canAccessSettings()) {
+    showScreen("list");
+    syncUrlWithState("list");
+    return;
+  }
   await loadSettingsCatalogs();
   showScreen("settings");
   syncUrlWithState("settings");
+});
+
+downloadClientsTemplateBtn.addEventListener("click", async () => {
+  try {
+    clearImportFeedback(clientsImportStatus, clientsImportDetails);
+    downloadClientsTemplateBtn.disabled = true;
+    await downloadClientsTemplate();
+  } catch (error) {
+    clientsImportStatus.textContent = error.message;
+  } finally {
+    downloadClientsTemplateBtn.disabled = false;
+  }
+});
+
+importClientsBtn.addEventListener("click", async () => {
+  const file = clientsImportFile.files?.[0];
+  if (!file) {
+    clientsImportStatus.textContent = "Seleccioná un archivo Excel antes de importar.";
+    clientsImportDetails.classList.add("hidden");
+    return;
+  }
+
+  try {
+    clearImportFeedback(clientsImportStatus, clientsImportDetails);
+    importClientsBtn.disabled = true;
+    clientsImportStatus.textContent = "Importando clientes...";
+    const result = await importClientsFromExcel(file);
+    renderImportFeedback(clientsImportStatus, clientsImportDetails, result, "clientes");
+    await loadClients({ clearSelectionWhenMissing: false });
+  } catch (error) {
+    clientsImportStatus.textContent = error.message;
+    clientsImportDetails.classList.add("hidden");
+  } finally {
+    importClientsBtn.disabled = false;
+  }
+});
+
+downloadUsersTemplateBtn.addEventListener("click", async () => {
+  try {
+    clearImportFeedback(usersImportStatus, usersImportDetails);
+    downloadUsersTemplateBtn.disabled = true;
+    await downloadUsersTemplate();
+  } catch (error) {
+    usersImportStatus.textContent = error.message;
+  } finally {
+    downloadUsersTemplateBtn.disabled = false;
+  }
+});
+
+importUsersBtn.addEventListener("click", async () => {
+  const file = usersImportFile.files?.[0];
+  if (!file) {
+    usersImportStatus.textContent = "Seleccioná un archivo Excel antes de importar.";
+    usersImportDetails.classList.add("hidden");
+    return;
+  }
+
+  try {
+    clearImportFeedback(usersImportStatus, usersImportDetails);
+    importUsersBtn.disabled = true;
+    usersImportStatus.textContent = "Importando usuarios...";
+    const result = await importUsersFromExcel(file);
+    renderImportFeedback(usersImportStatus, usersImportDetails, result, "usuarios");
+    await loadUsers();
+    await loadAssignmentOptions();
+  } catch (error) {
+    usersImportStatus.textContent = error.message;
+    usersImportDetails.classList.add("hidden");
+  } finally {
+    importUsersBtn.disabled = false;
+  }
 });
 
 document.querySelectorAll(".table-sort-btn").forEach((button) => {
@@ -2616,8 +2845,10 @@ loginForm.addEventListener("submit", async (event) => {
     showScreen("list");
     await loadCatalogs();
     await loadAssignmentOptions();
-    await loadSettingsCatalogs();
-    await loadUsers();
+    if (canAccessSettings()) {
+      await loadSettingsCatalogs();
+      await loadUsers();
+    }
     await loadClients();
     await loadCalendar();
     await applyRouteFromHash();
@@ -2653,8 +2884,10 @@ loadCurrentUser().then(async (loggedIn) => {
   if (loggedIn) {
     await loadCatalogs();
     await loadAssignmentOptions();
-    await loadSettingsCatalogs();
-    await loadUsers();
+    if (canAccessSettings()) {
+      await loadSettingsCatalogs();
+      await loadUsers();
+    }
     await loadClients();
     await loadCalendar();
     await applyRouteFromHash();

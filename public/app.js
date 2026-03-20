@@ -2225,14 +2225,16 @@ async function deleteUser(userId) {
 }
 
 async function loadSectorOptions() {
-  const response = await fetch("/api/settings/sectors");
+  const response = await fetch("/api/sector-options");
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || "No se pudieron cargar los sectores");
   }
   sectorOptions = data.sectors || [];
   renderSectorSelect(editSector.value);
-  renderSectors();
+  if (canAccessSettings()) {
+    renderSectors();
+  }
 }
 
 async function loadMeetingTypesConfig() {

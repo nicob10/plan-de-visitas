@@ -48,10 +48,19 @@
           <div class="topbar-user">
             <div class="view-switch">
               <button id="showClientsBtn" class="secondary-btn" type="button">Clientes</button>
-              <button id="showVisitsBtn" class="secondary-btn" type="button">Visitas</button>
-              <button id="showVisitsGridBtn" class="secondary-btn" type="button">Grilla</button>
-              <button id="showCalendarBtn" class="secondary-btn" type="button">Calendario</button>
-              <button id="showUsersBtn" class="secondary-btn hidden" type="button">Usuarios</button>
+              <div id="visitsMenu" class="nav-menu">
+                <button id="showVisitsBtn" class="secondary-btn nav-parent-btn" type="button">Visitas</button>
+                <div class="nav-submenu">
+                  <button id="showVisitsGridBtn" class="secondary-btn nav-submenu-btn" type="button">Grilla</button>
+                  <button id="showCalendarBtn" class="secondary-btn nav-submenu-btn" type="button">Calendario</button>
+                </div>
+              </div>
+              <div id="crmMenu" class="nav-menu">
+                <button id="showPipelineBtn" class="secondary-btn nav-parent-btn" type="button">CRM</button>
+                <div class="nav-submenu">
+                  <button id="openPipelineFromCrmBtn" class="secondary-btn nav-submenu-btn" type="button">Pipeline</button>
+                </div>
+              </div>
               <button id="showSettingsBtn" class="secondary-btn" type="button">Configuración</button>
             </div>
             <span id="currentUserBadge" class="pill"></span>
@@ -224,6 +233,49 @@
               <tbody id="visitsTableBody"></tbody>
             </table>
           </div>
+        </section>
+      </section>
+
+      <section id="pipelineScreen" class="hidden">
+        <section class="toolbar panel pipeline-toolbar">
+          <div class="toolbar-group">
+            <label for="pipelineSearchInput">Buscar oportunidad</label>
+            <input id="pipelineSearchInput" type="search" placeholder="Cliente, negocio u origen..." />
+          </div>
+          <div class="toolbar-group">
+            <label for="pipelineOwnerFilter">Responsable</label>
+            <select id="pipelineOwnerFilter">
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="pipelineStatusFilter">Etapa</label>
+            <select id="pipelineStatusFilter">
+              <option value="todos">Todas</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="panel detail-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Oportunidades</h2>
+              <p class="section-copy">Oportunidades abiertas y cerradas, ordenadas por etapa, con visibilidad inmediata sobre monto, probabilidad y próximo paso.</p>
+            </div>
+            <span id="pipelineVisibleCount" class="pill"></span>
+          </div>
+          <div class="pipeline-section-head">
+            <h3>Pipeline de Obras</h3>
+            <p class="section-copy">Tablero superior dedicado exclusivamente a proyectos y obras.</p>
+          </div>
+          <div id="pipelineSummaryProjects" class="pipeline-summary-grid"></div>
+          <div id="pipelineProjectsBoard" class="pipeline-board"></div>
+          <div class="pipeline-section-head">
+            <h3>Pipeline de Servicios</h3>
+            <p class="section-copy">Instalaciones Fijas, Extintores y Multiservicio con seguimiento comercial separado.</p>
+          </div>
+          <div id="pipelineSummaryServices" class="pipeline-summary-grid"></div>
+          <div id="pipelineServicesBoard" class="pipeline-board"></div>
         </section>
       </section>
 
@@ -510,29 +562,147 @@
             <div id="detailServices" class="service-row"></div>
             <div class="kpi-grid" id="detailKpis"></div>
 
-            <div class="section-head section-head-featured meetings-head">
-              <div>
-                <span class="section-icon-badge" aria-hidden="true">Agenda</span>
-                <h3 class="section-title section-title-featured">Historial de reuniones</h3>
-                <p class="section-copy">Cada reunión queda acumulada y visible para todo el equipo.</p>
-              </div>
-            </div>
-            <div id="meetingList" class="meeting-list"></div>
-
             <div class="section-head section-head-featured branches-head">
               <div>
                 <span class="section-icon-badge" aria-hidden="true">Red</span>
-                <h3 class="section-title section-title-featured">Sucursales</h3>
-                <p class="section-copy">Cada sucursal puede tener su propio ejecutivo, servicios activos y supervisores asignados.</p>
+                <h3 class="section-title section-title-featured">Ficha y sucursales</h3>
+                <p class="section-copy">Desde acá podés revisar la cuenta principal y administrar sus sucursales sin salir del cliente.</p>
               </div>
               <button id="addBranchBtn" class="secondary-btn" type="button">+ Nueva sucursal</button>
             </div>
             <div id="branchList" class="meeting-list"></div>
+
+            <div class="detail-section-nav">
+              <button id="showDetailOpportunitiesBtn" class="secondary-btn active-view" type="button">Oportunidades</button>
+              <button id="showDetailVisitsBtn" class="secondary-btn" type="button">Plan de Visitas</button>
+            </div>
+
+            <section id="detailOpportunitiesSection">
+              <div class="section-head section-head-featured crm-head">
+                <div>
+                  <span class="section-icon-badge" aria-hidden="true">CRM</span>
+                  <h3 class="section-title section-title-featured">Pipeline y seguimientos</h3>
+                  <p class="section-copy">Negocios abiertos, próximos pasos y comentarios comerciales en una única línea de tiempo por cuenta.</p>
+                </div>
+                <button id="newOpportunityBtn" class="primary-btn" type="button">+ Nueva oportunidad</button>
+              </div>
+              <div id="crmSummaryGrid" class="kpi-grid"></div>
+              <div id="opportunityList" class="opportunity-list"></div>
+            </section>
+
+            <section id="detailVisitsSection" class="hidden">
+              <div class="section-head section-head-featured meetings-head">
+                <div>
+                  <span class="section-icon-badge" aria-hidden="true">Agenda</span>
+                  <h3 class="section-title section-title-featured">Plan de visitas</h3>
+                  <p class="section-copy">Reuniones agendadas, realizadas y próximas acciones del cliente en un solo lugar.</p>
+                </div>
+              </div>
+              <div id="meetingList" class="meeting-list"></div>
+            </section>
+
+            <form id="opportunityForm" class="company-edit-form hidden crm-form-card crm-modal">
+              <div class="panel-title-row compact-row">
+                <h3 id="opportunityFormTitle">Nueva oportunidad</h3>
+                <button id="cancelOpportunityEditBtn" class="secondary-btn" type="button">Cancelar</button>
+              </div>
+              <div class="edit-grid">
+                <label class="span-2">
+                  Nombre del negocio
+                  <input id="opportunityTitle" type="text" placeholder="Ej: Renovación anual extintores" required />
+                </label>
+                <label>
+                  Tipo de oportunidad
+                  <select id="opportunityType" required></select>
+                </label>
+                <label>
+                  Línea de servicio
+                  <select id="opportunityServiceLine" required></select>
+                </label>
+                <label>
+                  Etapa
+                  <select id="opportunityStatusSelect" required></select>
+                </label>
+                <label>
+                  Monto estimado
+                  <input id="opportunityAmount" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  Probabilidad
+                  <input id="opportunityProbability" type="number" min="0" max="100" step="1" required />
+                </label>
+                <label>
+                  Cierre estimado
+                  <input id="opportunityExpectedCloseDate" type="date" />
+                </label>
+                <label>
+                  Responsable
+                  <select id="opportunityOwnerUserId" required></select>
+                </label>
+                <label>
+                  Alcance
+                  <select id="opportunityBranchId"></select>
+                </label>
+                <label class="span-2">
+                  Origen
+                  <input id="opportunitySource" type="text" placeholder="Ej: Reunión comercial, referido, renovación" />
+                </label>
+              </div>
+              <label>
+                Comentarios
+                <textarea id="opportunityDescription" rows="4" placeholder="Contexto, necesidad detectada, competidores y puntos de dolor"></textarea>
+              </label>
+              <label id="opportunityLossReasonGroup" class="hidden">
+                Motivo de pérdida
+                <textarea id="opportunityLossReason" rows="3" placeholder="Por qué se perdió o quedó fuera de competencia"></textarea>
+              </label>
+              <div class="edit-actions">
+                <button id="saveOpportunityBtn" class="primary-btn" type="submit">Guardar oportunidad</button>
+                <span id="opportunityStatusMessage" aria-live="polite"></span>
+              </div>
+            </form>
+
+            <form id="followUpForm" class="company-edit-form hidden crm-form-card crm-modal">
+              <div class="panel-title-row compact-row">
+                <h3 id="followUpFormTitle">Nuevo seguimiento</h3>
+                <button id="cancelFollowUpEditBtn" class="secondary-btn" type="button">Cancelar</button>
+              </div>
+              <div class="edit-grid">
+                <label>
+                  Tipo
+                  <select id="followUpType" required></select>
+                </label>
+                <label class="span-2">
+                  Acción
+                  <input id="followUpTitle" type="text" placeholder="Ej: Enviar propuesta ajustada" required />
+                </label>
+                <label>
+                  Fecha
+                  <input id="followUpDueDate" type="date" required />
+                </label>
+                <label>
+                  Responsable
+                  <select id="followUpAssignedUserId" required></select>
+                </label>
+                <label>
+                  Estado
+                  <select id="followUpStatusSelect" required></select>
+                </label>
+              </div>
+              <label>
+                Comentarios
+                <textarea id="followUpNotes" rows="3" placeholder="Qué hay que hacer, contexto y resultado esperado"></textarea>
+              </label>
+              <div class="edit-actions">
+                <button id="saveFollowUpBtn" class="primary-btn" type="submit">Guardar seguimiento</button>
+                <span id="followUpStatusMessage" aria-live="polite"></span>
+              </div>
+            </form>
           </div>
         </div>
       </section>
 
-      <section id="meetingScreen" class="hidden">
+      <section id="meetingScreen" class="hidden modal-screen">
         <div class="panel detail-panel">
           <div class="detail-top">
             <button id="backFromMeeting" class="back-btn" type="button">← Volver</button>
@@ -593,6 +763,12 @@
                 Estado
                 <select id="meetingStatusSelect" required></select>
               </label>
+              <label>
+                Oportunidad vinculada
+                <select id="meetingOpportunity">
+                  <option value="">Sin vincular</option>
+                </select>
+              </label>
               <label id="meetingNextDateGroup" class="hidden">
                 Próxima reunión
                 <input id="meetingNextDate" type="date" />
@@ -630,7 +806,7 @@
         </div>
       </section>
 
-      <section id="editScreen" class="hidden">
+      <section id="editScreen" class="hidden modal-screen">
         <div class="panel detail-panel">
           <div class="detail-top">
             <button id="backFromEdit" class="back-btn" type="button">← Volver</button>

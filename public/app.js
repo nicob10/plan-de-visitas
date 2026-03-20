@@ -13,6 +13,12 @@ const MEETING_COLOR_OPTIONS = [
   { value: "red", label: "Rojo" }
 ];
 
+const DEFAULT_OPPORTUNITY_STATUSES = ["Abierta", "Calificada", "Propuesta", "Negociación", "Ganada", "Perdida"];
+const DEFAULT_OPPORTUNITY_TYPES = ["Proyecto", "Negociación"];
+const DEFAULT_SERVICE_LINES = ["Instalaciones Fijas", "Extintores", "Obras C.I.", "Multiservicio", "Otro"];
+const DEFAULT_FOLLOW_UP_TYPES = ["Llamada", "Email", "Visita", "Cotización", "Recordatorio", "Reunión"];
+const DEFAULT_FOLLOW_UP_STATUSES = ["Pendiente", "Hecho"];
+
 const loginScreen = document.getElementById("loginScreen");
 const appContent = document.getElementById("appContent");
 const loginForm = document.getElementById("loginForm");
@@ -24,10 +30,12 @@ const currentUserBadge = document.getElementById("currentUserBadge");
 const logoutBtn = document.getElementById("logoutBtn");
 const showClientsBtn = document.getElementById("showClientsBtn");
 const showVisitsBtn = document.getElementById("showVisitsBtn");
+const showPipelineBtn = document.getElementById("showPipelineBtn");
 const showVisitsGridBtn = document.getElementById("showVisitsGridBtn");
 const showCalendarBtn = document.getElementById("showCalendarBtn");
 const showUsersBtn = document.getElementById("showUsersBtn");
 const showSettingsBtn = document.getElementById("showSettingsBtn");
+const openPipelineFromCrmBtn = document.getElementById("openPipelineFromCrmBtn");
 const openUsersFromSettingsBtn = document.getElementById("openUsersFromSettingsBtn");
 const backToSettingsBtn = document.getElementById("backToSettingsBtn");
 
@@ -97,6 +105,7 @@ const exportVisitsBtn = document.getElementById("exportVisitsBtn");
 
 const listScreen = document.getElementById("listScreen");
 const visitsScreen = document.getElementById("visitsScreen");
+const pipelineScreen = document.getElementById("pipelineScreen");
 const detailScreen = document.getElementById("detailScreen");
 const editScreen = document.getElementById("editScreen");
 const meetingScreen = document.getElementById("meetingScreen");
@@ -119,9 +128,54 @@ const detailMeta = document.getElementById("detailMeta");
 const detailSegment = document.getElementById("detailSegment");
 const detailKpis = document.getElementById("detailKpis");
 const detailServices = document.getElementById("detailServices");
+const crmSummaryGrid = document.getElementById("crmSummaryGrid");
+const showDetailOpportunitiesBtn = document.getElementById("showDetailOpportunitiesBtn");
+const showDetailVisitsBtn = document.getElementById("showDetailVisitsBtn");
+const detailOpportunitiesSection = document.getElementById("detailOpportunitiesSection");
+const detailVisitsSection = document.getElementById("detailVisitsSection");
+const newOpportunityBtn = document.getElementById("newOpportunityBtn");
+const opportunityForm = document.getElementById("opportunityForm");
+const opportunityFormTitle = document.getElementById("opportunityFormTitle");
+const opportunityTitle = document.getElementById("opportunityTitle");
+const opportunityType = document.getElementById("opportunityType");
+const opportunityServiceLine = document.getElementById("opportunityServiceLine");
+const opportunityStatusSelect = document.getElementById("opportunityStatusSelect");
+const opportunityAmount = document.getElementById("opportunityAmount");
+const opportunityProbability = document.getElementById("opportunityProbability");
+const opportunityExpectedCloseDate = document.getElementById("opportunityExpectedCloseDate");
+const opportunityOwnerUserId = document.getElementById("opportunityOwnerUserId");
+const opportunityBranchId = document.getElementById("opportunityBranchId");
+const opportunitySource = document.getElementById("opportunitySource");
+const opportunityDescription = document.getElementById("opportunityDescription");
+const opportunityLossReasonGroup = document.getElementById("opportunityLossReasonGroup");
+const opportunityLossReason = document.getElementById("opportunityLossReason");
+const saveOpportunityBtn = document.getElementById("saveOpportunityBtn");
+const cancelOpportunityEditBtn = document.getElementById("cancelOpportunityEditBtn");
+const opportunityStatusMessage = document.getElementById("opportunityStatusMessage");
+const followUpForm = document.getElementById("followUpForm");
+const followUpFormTitle = document.getElementById("followUpFormTitle");
+const followUpType = document.getElementById("followUpType");
+const followUpTitle = document.getElementById("followUpTitle");
+const followUpDueDate = document.getElementById("followUpDueDate");
+const followUpAssignedUserId = document.getElementById("followUpAssignedUserId");
+const followUpStatusSelect = document.getElementById("followUpStatusSelect");
+const followUpNotes = document.getElementById("followUpNotes");
+const saveFollowUpBtn = document.getElementById("saveFollowUpBtn");
+const cancelFollowUpEditBtn = document.getElementById("cancelFollowUpEditBtn");
+const followUpStatusMessage = document.getElementById("followUpStatusMessage");
+const opportunityList = document.getElementById("opportunityList");
 const meetingList = document.getElementById("meetingList");
 const branchList = document.getElementById("branchList");
 const meetingCardTemplate = document.getElementById("meetingCardTemplate");
+
+const pipelineSearchInput = document.getElementById("pipelineSearchInput");
+const pipelineOwnerFilter = document.getElementById("pipelineOwnerFilter");
+const pipelineStatusFilter = document.getElementById("pipelineStatusFilter");
+const pipelineVisibleCount = document.getElementById("pipelineVisibleCount");
+const pipelineSummaryProjects = document.getElementById("pipelineSummaryProjects");
+const pipelineProjectsBoard = document.getElementById("pipelineProjectsBoard");
+const pipelineSummaryServices = document.getElementById("pipelineSummaryServices");
+const pipelineServicesBoard = document.getElementById("pipelineServicesBoard");
 
 const calendarGrid = document.getElementById("calendarGrid");
 const calendarDayView = document.getElementById("calendarDayView");
@@ -173,6 +227,7 @@ const meetingParticipantsList = document.getElementById("meetingParticipantsList
 const meetingContactName = document.getElementById("meetingContactName");
 const meetingContactRole = document.getElementById("meetingContactRole");
 const meetingStatusSelect = document.getElementById("meetingStatusSelect");
+const meetingOpportunity = document.getElementById("meetingOpportunity");
 const meetingNextDateGroup = document.getElementById("meetingNextDateGroup");
 const meetingNextDate = document.getElementById("meetingNextDate");
 const meetingMinutes = document.getElementById("meetingMinutes");
@@ -219,11 +274,32 @@ let sectorOptions = [];
 let visits = [];
 let visitsGridData = [];
 let visitsSearchTimer = null;
+let pipelineSearchTimer = null;
 let visitsSort = {
   key: "scheduledFor",
   direction: "desc"
 };
 let selectedParticipantUserIds = [];
+let detailSection = "opportunities";
+let crmCatalogs = {
+  opportunityStatuses: [],
+  openOpportunityStatuses: [],
+  opportunityTypes: [],
+  serviceLines: [],
+  followUpStatuses: [],
+  followUpTypes: []
+};
+let editingOpportunityId = null;
+let editingFollowUpId = null;
+let followUpOpportunityId = null;
+let pipelineOpportunities = [];
+let pipelineSummaryData = {
+  openCount: 0,
+  totalAmount: 0,
+  weightedAmount: 0,
+  overdueFollowUps: 0,
+  dueThisWeek: 0
+};
 let assignmentOptions = {
   allUsers: [],
   executives: [],
@@ -248,10 +324,17 @@ function updateAuthUi() {
   loginScreen.classList.toggle("hidden", loggedIn);
   appContent.classList.toggle("hidden", !loggedIn);
   showSettingsBtn.classList.toggle("hidden", !loggedIn || !canAccessSettings());
-  showUsersBtn.classList.toggle("hidden", !loggedIn || !canAccessSettings());
   currentUserBadge.innerHTML = loggedIn
     ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
     : "";
+}
+
+function syncModalState() {
+  const editOpen = !editScreen.classList.contains("hidden");
+  const meetingOpen = !meetingScreen.classList.contains("hidden");
+  const opportunityOpen = !opportunityForm.classList.contains("hidden");
+  const followUpOpen = !followUpForm.classList.contains("hidden");
+  document.body.classList.toggle("modal-active", editOpen || meetingOpen || opportunityOpen || followUpOpen);
 }
 
 function parseNumericInput(input, { integer = false, min = null, max = null } = {}) {
@@ -310,6 +393,41 @@ function getMeetingTypeMeta(kind) {
     label: kind,
     color: "yellow"
   };
+}
+
+function getOpenOpportunityStatuses() {
+  return crmCatalogs.openOpportunityStatuses || [];
+}
+
+function isOpenOpportunity(status) {
+  return getOpenOpportunityStatuses().includes(status);
+}
+
+function formatMoney(amount) {
+  const numericAmount = Number(amount || 0);
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(numericAmount);
+}
+
+function getOpportunityStatusClass(status) {
+  const normalized = String(status || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-");
+  return `opportunity-status-${normalized || "default"}`;
+}
+
+function getFollowUpStatusClass(status) {
+  const normalized = String(status || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-");
+  return `follow-up-status-${normalized || "default"}`;
 }
 
 function getMeetingColorLabel(colorValue) {
@@ -432,6 +550,107 @@ function renderTypeSelectOptions() {
   visitsStatusFilter.value = currentVisitStatus || "todos";
 }
 
+function renderOpportunitySelects() {
+  const opportunityStatuses = crmCatalogs.opportunityStatuses?.length ? crmCatalogs.opportunityStatuses : DEFAULT_OPPORTUNITY_STATUSES;
+  const opportunityTypes = crmCatalogs.opportunityTypes?.length ? crmCatalogs.opportunityTypes : DEFAULT_OPPORTUNITY_TYPES;
+  const serviceLines = crmCatalogs.serviceLines?.length ? crmCatalogs.serviceLines : DEFAULT_SERVICE_LINES;
+  const followUpTypes = crmCatalogs.followUpTypes?.length ? crmCatalogs.followUpTypes : DEFAULT_FOLLOW_UP_TYPES;
+  const followUpStatuses = crmCatalogs.followUpStatuses?.length ? crmCatalogs.followUpStatuses : DEFAULT_FOLLOW_UP_STATUSES;
+  const currentPipelineStatus = pipelineStatusFilter.value;
+  const currentOpportunityStatus = opportunityStatusSelect.value;
+  const currentOpportunityType = opportunityType.value;
+  const currentServiceLine = opportunityServiceLine.value;
+  const currentFollowUpType = followUpType.value;
+  const currentFollowUpStatus = followUpStatusSelect.value;
+
+  opportunityStatusSelect.innerHTML = opportunityStatuses
+    .map((status) => `<option value="${status}">${status}</option>`)
+    .join("");
+  opportunityType.innerHTML = opportunityTypes
+    .map((type) => `<option value="${type}">${type}</option>`)
+    .join("");
+  pipelineStatusFilter.innerHTML = ['<option value="todos">Todas</option>']
+    .concat(opportunityStatuses.map((status) => `<option value="${status}">${status}</option>`))
+    .join("");
+  opportunityServiceLine.innerHTML = serviceLines
+    .map((serviceLine) => `<option value="${serviceLine}">${serviceLine}</option>`)
+    .join("");
+  followUpType.innerHTML = followUpTypes
+    .map((type) => `<option value="${type}">${type}</option>`)
+    .join("");
+  followUpStatusSelect.innerHTML = followUpStatuses
+    .map((status) => `<option value="${status}">${status}</option>`)
+    .join("");
+
+  if (currentOpportunityStatus && opportunityStatuses.includes(currentOpportunityStatus)) {
+    opportunityStatusSelect.value = currentOpportunityStatus;
+  }
+  if (currentOpportunityType && opportunityTypes.includes(currentOpportunityType)) {
+    opportunityType.value = currentOpportunityType;
+  }
+  if (currentPipelineStatus && opportunityStatuses.includes(currentPipelineStatus)) {
+    pipelineStatusFilter.value = currentPipelineStatus;
+  }
+  if (currentServiceLine && serviceLines.includes(currentServiceLine)) {
+    opportunityServiceLine.value = currentServiceLine;
+  }
+  if (currentFollowUpType && followUpTypes.includes(currentFollowUpType)) {
+    followUpType.value = currentFollowUpType;
+  }
+  if (currentFollowUpStatus && followUpStatuses.includes(currentFollowUpStatus)) {
+    followUpStatusSelect.value = currentFollowUpStatus;
+  }
+
+  syncOpportunityLossReasonVisibility();
+}
+
+function renderOpportunityOwnerSelects() {
+  const users = assignmentOptions.allUsers || [];
+  const currentOwner = opportunityOwnerUserId.value;
+  const currentAssigned = followUpAssignedUserId.value;
+  const currentPipelineOwner = pipelineOwnerFilter.value;
+
+  const options = ['<option value="">Sin asignar</option>']
+    .concat(users.map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
+  opportunityOwnerUserId.innerHTML = options;
+  followUpAssignedUserId.innerHTML = options;
+  pipelineOwnerFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(users.map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
+  opportunityOwnerUserId.value = currentOwner || "";
+  followUpAssignedUserId.value = currentAssigned || "";
+  pipelineOwnerFilter.value = currentPipelineOwner || "todos";
+}
+
+function renderMeetingOpportunityOptions(selectedOpportunityId = "") {
+  const opportunities = Array.isArray(selectedClient?.opportunities) ? selectedClient.opportunities : [];
+  meetingOpportunity.innerHTML = ['<option value="">Sin vincular</option>']
+    .concat(
+      opportunities.map(
+        (opportunity) =>
+          `<option value="${opportunity.id}">${opportunity.title} · ${opportunity.status}${opportunity.branchName ? ` · ${opportunity.branchName}` : ""}</option>`
+      )
+    )
+    .join("");
+  meetingOpportunity.value = selectedOpportunityId ? String(selectedOpportunityId) : "";
+}
+
+function renderOpportunityBranchOptions(selectedBranchId = "") {
+  if (!selectedClient) {
+    opportunityBranchId.innerHTML = '<option value="">Casa matriz</option>';
+    return;
+  }
+
+  opportunityBranchId.innerHTML = [
+    '<option value="">Casa matriz</option>',
+    ...(selectedClient.branches || []).map((branch) => `<option value="${branch.id}">${branch.name}</option>`)
+  ].join("");
+  opportunityBranchId.value = selectedBranchId ? String(selectedBranchId) : "";
+}
+
 function getMeetingScopeEntity() {
   if (!selectedClient) return null;
   if (meetingScope.value.startsWith("branch:")) {
@@ -454,6 +673,14 @@ function syncMeetingContextBlocks() {
 
   if (!isGlobalCompany) meetingGlobalContacts.value = "";
   if (!hasActiveServices) meetingServiceStatus.value = "";
+}
+
+function syncOpportunityLossReasonVisibility() {
+  const showLossReason = opportunityStatusSelect.value === "Perdida";
+  opportunityLossReasonGroup.classList.toggle("hidden", !showLossReason);
+  if (!showLossReason) {
+    opportunityLossReason.value = "";
+  }
 }
 
 function resetMeetingTypeForm() {
@@ -599,6 +826,7 @@ function renderVisitsResponsibleFilters() {
   visitsSupervisorFilter.value = currentSupervisor || "todos";
   visitsParticipantFilter.value = currentParticipant || "todos";
   calendarParticipantFilter.value = currentCalendarParticipant || "todos";
+  renderOpportunityOwnerSelects();
 }
 
 function syncMeetingCompletionFields() {
@@ -704,7 +932,8 @@ function showScreen(screen) {
   const nextScreen = !canAccessSettings() && (screen === "settings" || screen === "users") ? "list" : screen;
   listScreen.classList.toggle("hidden", nextScreen !== "list");
   visitsScreen.classList.toggle("hidden", nextScreen !== "visits");
-  detailScreen.classList.toggle("hidden", nextScreen !== "detail");
+  pipelineScreen.classList.toggle("hidden", nextScreen !== "pipeline");
+  detailScreen.classList.toggle("hidden", !["detail", "edit", "meeting"].includes(nextScreen));
   editScreen.classList.toggle("hidden", nextScreen !== "edit");
   meetingScreen.classList.toggle("hidden", nextScreen !== "meeting");
   calendarScreen.classList.toggle("hidden", nextScreen !== "calendar");
@@ -715,11 +944,12 @@ function showScreen(screen) {
     "active-view",
     nextScreen === "list" || nextScreen === "detail" || nextScreen === "edit" || nextScreen === "meeting"
   );
-  showVisitsBtn.classList.toggle("active-view", nextScreen === "visits");
+  showVisitsBtn.classList.toggle("active-view", nextScreen === "visits" || nextScreen === "visits-grid" || nextScreen === "calendar");
+  showPipelineBtn.classList.toggle("active-view", nextScreen === "pipeline");
   showVisitsGridBtn.classList.toggle("active-view", nextScreen === "visits-grid");
   showCalendarBtn.classList.toggle("active-view", nextScreen === "calendar");
-  showUsersBtn.classList.toggle("active-view", nextScreen === "users");
-  showSettingsBtn.classList.toggle("active-view", nextScreen === "settings");
+  showSettingsBtn.classList.toggle("active-view", nextScreen === "settings" || nextScreen === "users");
+  syncModalState();
 }
 
 function buildCompanyHash(clientId, branchId = null) {
@@ -748,6 +978,10 @@ function syncUrlWithState(screen) {
   }
   if (screen === "visitas" || screen === "visits") {
     replaceHash("#/visitas");
+    return;
+  }
+  if (screen === "pipeline") {
+    replaceHash("#/pipeline");
     return;
   }
   if (screen === "users") {
@@ -813,6 +1047,7 @@ function parseAppHash() {
 
   if (normalized === "/calendario") return { screen: "calendar" };
   if (normalized === "/visitas") return { screen: "visits" };
+  if (normalized === "/pipeline") return { screen: "pipeline" };
   if (normalized === "/configuracion/usuarios") return { screen: "users" };
   if (normalized === "/configuracion") return { screen: "settings" };
   return { screen: "list" };
@@ -838,6 +1073,12 @@ async function applyRouteFromHash() {
   if (route.screen === "visits") {
     await loadVisits();
     showScreen("visits");
+    return;
+  }
+
+  if (route.screen === "pipeline") {
+    await loadPipeline();
+    showScreen("pipeline");
     return;
   }
 
@@ -873,7 +1114,9 @@ function computeGlobalKpis(globalData) {
     { label: "Reuniones agendadas", value: globalData.meetingsScheduled || 0 },
     { label: "Reuniones confirmadas", value: globalData.meetingsConfirmed || 0 },
     { label: "Reuniones realizadas", value: globalData.meetingsCompleted || 0 },
-    { label: "Clientes visitados", value: globalData.clientsVisited || 0 }
+    { label: "Clientes visitados", value: globalData.clientsVisited || 0 },
+    { label: "Oportunidades abiertas", value: globalData.openOpportunities || 0 },
+    { label: "Follow-ups vencidos", value: globalData.overdueFollowUps || 0 }
   ].forEach((kpi) => {
     const chip = document.createElement("div");
     chip.className = "kpi-chip";
@@ -1105,6 +1348,389 @@ function renderRoleAssignmentsCard(label, value) {
   return div;
 }
 
+function buildCrmSummaryClientSide(opportunities) {
+  const openOpportunities = opportunities.filter((opportunity) => isOpenOpportunity(opportunity.status));
+  const today = new Date(`${dateKey(new Date())}T00:00:00`);
+  const dueThisWeek = openOpportunities.reduce((total, opportunity) => {
+    const dueDate = opportunity.nextFollowUp?.dueDate;
+    if (!dueDate || opportunity.nextFollowUp?.visualStatus === "Vencido") return total;
+    const diffDays = Math.floor((new Date(`${dueDate}T00:00:00`) - today) / 86400000);
+    return diffDays >= 0 && diffDays <= 7 ? total + 1 : total;
+  }, 0);
+
+  return {
+    openCount: openOpportunities.length,
+    totalAmount: openOpportunities.reduce((total, opportunity) => total + Number(opportunity.amount || 0), 0),
+    weightedAmount: openOpportunities.reduce((total, opportunity) => total + Number(opportunity.weightedAmount || 0), 0),
+    overdueFollowUps: openOpportunities.reduce((total, opportunity) => total + Number(opportunity.overdueFollowUps || 0), 0),
+    dueThisWeek
+  };
+}
+
+function getVisibleOpportunities() {
+  const opportunities = Array.isArray(selectedClient?.opportunities) ? selectedClient.opportunities : [];
+  if (!selectedBranchView) return opportunities;
+  return opportunities.filter((opportunity) => Number(opportunity.branchId) === Number(selectedBranchView.id));
+}
+
+function renderCrmSummary(opportunities) {
+  const summary = buildCrmSummaryClientSide(opportunities);
+  crmSummaryGrid.innerHTML = "";
+  crmSummaryGrid.append(
+    kpiItem("Oportunidades abiertas", summary.openCount),
+    kpiItem("Pipeline abierto", formatMoney(summary.totalAmount)),
+    kpiItem("Pipeline ponderado", formatMoney(summary.weightedAmount)),
+    kpiItem("Seguimientos vencidos", summary.overdueFollowUps),
+    kpiItem("Seguimientos esta semana", summary.dueThisWeek)
+  );
+}
+
+function renderDetailSectionNav() {
+  const showingOpportunities = detailSection === "opportunities";
+  detailOpportunitiesSection.classList.toggle("hidden", !showingOpportunities);
+  detailVisitsSection.classList.toggle("hidden", showingOpportunities);
+  showDetailOpportunitiesBtn.classList.toggle("active-view", showingOpportunities);
+  showDetailVisitsBtn.classList.toggle("active-view", !showingOpportunities);
+}
+
+function resetOpportunityForm() {
+  renderOpportunitySelects();
+  const opportunityTypes = crmCatalogs.opportunityTypes?.length ? crmCatalogs.opportunityTypes : DEFAULT_OPPORTUNITY_TYPES;
+  const serviceLines = crmCatalogs.serviceLines?.length ? crmCatalogs.serviceLines : DEFAULT_SERVICE_LINES;
+  editingOpportunityId = null;
+  opportunityFormTitle.textContent = "Nueva oportunidad";
+  saveOpportunityBtn.textContent = "Guardar oportunidad";
+  opportunityTitle.value = "";
+  opportunityAmount.value = "";
+  opportunityProbability.value = "50";
+  opportunityExpectedCloseDate.value = "";
+  opportunitySource.value = "";
+  opportunityDescription.value = "";
+  opportunityLossReason.value = "";
+  opportunityStatusMessage.textContent = "";
+  opportunityStatusSelect.value = opportunityStatusSelect.options[0]?.value || "";
+  opportunityType.value = opportunityTypes[0] || "";
+  opportunityServiceLine.value = serviceLines[0] || "";
+  opportunityOwnerUserId.value = currentUser?.id ? String(currentUser.id) : "";
+  renderOpportunityBranchOptions();
+  syncOpportunityLossReasonVisibility();
+  opportunityForm.classList.add("hidden");
+  syncModalState();
+}
+
+function openOpportunityForm(opportunity = null) {
+  if (!selectedClient) return;
+  renderOpportunitySelects();
+  const opportunityTypes = crmCatalogs.opportunityTypes?.length ? crmCatalogs.opportunityTypes : DEFAULT_OPPORTUNITY_TYPES;
+  const serviceLines = crmCatalogs.serviceLines?.length ? crmCatalogs.serviceLines : DEFAULT_SERVICE_LINES;
+  editingOpportunityId = opportunity?.id || null;
+  opportunityFormTitle.textContent = opportunity ? `Editar oportunidad · ${opportunity.title}` : "Nueva oportunidad";
+  saveOpportunityBtn.textContent = opportunity ? "Guardar cambios" : "Guardar oportunidad";
+  opportunityTitle.value = opportunity?.title || "";
+  opportunityType.value = opportunity?.opportunityType || opportunityTypes[0] || "";
+  opportunityServiceLine.value = opportunity?.serviceLine || serviceLines[0] || "";
+  opportunityStatusSelect.value = opportunity?.status || opportunityStatusSelect.options[0]?.value || "";
+  opportunityAmount.value = opportunity?.amount ?? "";
+  opportunityProbability.value = opportunity?.probability ?? 50;
+  opportunityExpectedCloseDate.value = opportunity?.expectedCloseDate || "";
+  opportunityOwnerUserId.value = opportunity?.ownerUserId ? String(opportunity.ownerUserId) : currentUser?.id ? String(currentUser.id) : "";
+  opportunitySource.value = opportunity?.source || "";
+  opportunityDescription.value = opportunity?.description || "";
+  opportunityLossReason.value = opportunity?.lossReason || "";
+  renderOpportunityBranchOptions(opportunity?.branchId || (selectedBranchView ? selectedBranchView.id : ""));
+  opportunityStatusMessage.textContent = "";
+  syncOpportunityLossReasonVisibility();
+  opportunityForm.classList.remove("hidden");
+  followUpForm.classList.add("hidden");
+  syncModalState();
+}
+
+function resetFollowUpForm() {
+  renderOpportunitySelects();
+  editingFollowUpId = null;
+  followUpOpportunityId = null;
+  followUpFormTitle.textContent = "Nuevo seguimiento";
+  saveFollowUpBtn.textContent = "Guardar seguimiento";
+  followUpType.value = followUpType.options[0]?.value || "";
+  followUpTitle.value = "";
+  followUpDueDate.value = "";
+  followUpAssignedUserId.value = currentUser?.id ? String(currentUser.id) : "";
+  followUpStatusSelect.value = followUpStatusSelect.options[0]?.value || "";
+  followUpNotes.value = "";
+  followUpStatusMessage.textContent = "";
+  followUpForm.classList.add("hidden");
+  syncModalState();
+}
+
+function openFollowUpForm(opportunity, followUp = null) {
+  if (!opportunity) return;
+  renderOpportunitySelects();
+  editingFollowUpId = followUp?.id || null;
+  followUpOpportunityId = opportunity.id;
+  followUpFormTitle.textContent = followUp ? `Editar seguimiento · ${opportunity.title}` : `Nuevo seguimiento · ${opportunity.title}`;
+  saveFollowUpBtn.textContent = followUp ? "Guardar cambios" : "Guardar seguimiento";
+  followUpType.value = followUp?.type || followUpType.options[0]?.value || "";
+  followUpTitle.value = followUp?.title || "";
+  followUpDueDate.value = followUp?.dueDate || "";
+  followUpAssignedUserId.value = followUp?.assignedUserId ? String(followUp.assignedUserId) : currentUser?.id ? String(currentUser.id) : "";
+  followUpStatusSelect.value = followUp?.status || followUpStatusSelect.options[0]?.value || "";
+  followUpNotes.value = followUp?.notes || "";
+  followUpStatusMessage.textContent = "";
+  followUpForm.classList.remove("hidden");
+  opportunityForm.classList.add("hidden");
+  syncModalState();
+}
+
+function renderFollowUpsList(opportunity) {
+  if (!opportunity.followUps?.length) {
+    return `
+      <div class="crm-empty-inline">
+        <strong>Sin seguimientos cargados</strong>
+        <span>Definí el próximo paso para que la oportunidad no quede sin dueño ni fecha.</span>
+      </div>
+    `;
+  }
+
+  return opportunity.followUps
+    .map(
+      (followUp) => `
+        <article class="follow-up-item">
+          <div class="follow-up-item-main">
+            <div class="follow-up-item-head">
+              <strong>${followUp.title}</strong>
+              <span class="follow-up-badge ${getFollowUpStatusClass(followUp.visualStatus || followUp.status)}">${followUp.visualStatus || followUp.status}</span>
+            </div>
+            <p class="follow-up-item-meta">${[
+              followUp.type,
+              followUp.dueDate ? `Para ${formatDate(followUp.dueDate)}` : "",
+              followUp.assignedUserName ? `Responsable: ${followUp.assignedUserName}` : ""
+            ]
+              .filter(Boolean)
+              .join(" · ")}</p>
+            <p class="follow-up-item-notes">${followUp.notes || "Sin comentarios cargados."}</p>
+          </div>
+          <div class="follow-up-item-actions">
+            <button class="ghost-btn edit-follow-up-btn" type="button" data-follow-up-id="${followUp.id}">Editar</button>
+            <button class="ghost-btn toggle-follow-up-btn" type="button" data-follow-up-id="${followUp.id}" data-next-status="${followUp.status === "Hecho" ? "Pendiente" : "Hecho"}">${followUp.status === "Hecho" ? "Reabrir" : "Marcar hecho"}</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderOpportunityCard(opportunity) {
+  const article = document.createElement("article");
+  article.className = "opportunity-card";
+  article.innerHTML = `
+    <div class="opportunity-card-head">
+      <div>
+        <div class="opportunity-card-badges">
+          <span class="opportunity-badge ${getOpportunityStatusClass(opportunity.status)}">${opportunity.status}</span>
+          <span class="pill">${opportunity.opportunityType}</span>
+          <span class="service-badge">${opportunity.serviceLine}</span>
+          ${opportunity.branchName ? `<span class="pill">${opportunity.branchName}</span>` : '<span class="pill">Casa matriz</span>'}
+        </div>
+        <h4 class="opportunity-card-title">${opportunity.title}</h4>
+        <p class="opportunity-card-meta">${[
+          opportunity.clientName || selectedClient?.name || "",
+          opportunity.ownerName ? `Responsable: ${opportunity.ownerName}` : "",
+          opportunity.source ? `Origen: ${opportunity.source}` : ""
+        ]
+          .filter(Boolean)
+          .join(" · ")}</p>
+      </div>
+      <div class="opportunity-card-actions">
+        <button class="secondary-btn edit-opportunity-btn" type="button">Editar</button>
+        <button class="ghost-btn add-follow-up-btn" type="button">+ Seguimiento</button>
+      </div>
+    </div>
+    <div class="opportunity-kpis">
+      <div class="opportunity-kpi">
+        <span>Monto</span>
+        <b>${formatMoney(opportunity.amount)}</b>
+      </div>
+      <div class="opportunity-kpi">
+        <span>Probabilidad</span>
+        <b>${opportunity.probability}%</b>
+      </div>
+      <div class="opportunity-kpi">
+        <span>Ponderado</span>
+        <b>${formatMoney(opportunity.weightedAmount)}</b>
+      </div>
+      <div class="opportunity-kpi">
+        <span>Cierre estimado</span>
+        <b>${opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : "Sin fecha"}</b>
+      </div>
+      <div class="opportunity-kpi">
+        <span>Próximo paso</span>
+        <b>${opportunity.nextFollowUp ? `${opportunity.nextFollowUp.title} · ${formatDate(opportunity.nextFollowUp.dueDate)}` : "Sin seguimiento"}</b>
+      </div>
+      <div class="opportunity-kpi">
+        <span>Alertas</span>
+        <b>${opportunity.overdueFollowUps ? `${opportunity.overdueFollowUps} vencido(s)` : "Al día"}</b>
+      </div>
+    </div>
+    <div class="opportunity-description">
+      <p>${opportunity.description || "Sin comentarios comerciales cargados."}</p>
+      ${opportunity.lossReason ? `<p class="opportunity-loss-reason"><strong>Motivo de pérdida:</strong> ${opportunity.lossReason}</p>` : ""}
+    </div>
+    <div class="opportunity-follow-ups">
+      <div class="panel-title-row compact-row">
+        <h5>Seguimientos</h5>
+      </div>
+      <div class="follow-up-list">${renderFollowUpsList(opportunity)}</div>
+    </div>
+  `;
+
+  article.querySelector(".edit-opportunity-btn").addEventListener("click", () => {
+    openOpportunityForm(opportunity);
+  });
+  article.querySelector(".add-follow-up-btn").addEventListener("click", () => {
+    openFollowUpForm(opportunity);
+  });
+  article.querySelectorAll(".edit-follow-up-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const followUp = opportunity.followUps.find((item) => Number(item.id) === Number(button.dataset.followUpId));
+      if (!followUp) return;
+      openFollowUpForm(opportunity, followUp);
+    });
+  });
+  article.querySelectorAll(".toggle-follow-up-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const followUp = opportunity.followUps.find((item) => Number(item.id) === Number(button.dataset.followUpId));
+      if (!followUp) return;
+      try {
+        await saveFollowUp(opportunity.id, followUp.id, {
+          type: followUp.type,
+          title: followUp.title,
+          dueDate: followUp.dueDate,
+          assignedUserId: followUp.assignedUserId,
+          status: button.dataset.nextStatus,
+          notes: followUp.notes
+        });
+        await loadClientDetail(selectedClient.id);
+        renderTable();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+  });
+
+  return article;
+}
+
+function renderOpportunityList() {
+  const opportunities = getVisibleOpportunities();
+  renderCrmSummary(opportunities);
+  opportunityList.innerHTML = "";
+
+  if (!opportunities.length) {
+    opportunityList.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>No hay oportunidades cargadas</h4>
+        <p>${selectedBranchView ? "Las oportunidades de esta sucursal van a aparecer acá." : "Creá la primera oportunidad para empezar a gestionar pipeline, comentarios y próximos pasos."}</p>
+      </article>
+    `;
+    return;
+  }
+
+  opportunities.forEach((opportunity) => {
+    opportunityList.appendChild(renderOpportunityCard(opportunity));
+  });
+}
+
+function renderPipelineSummary(targetNode, summaryData) {
+  targetNode.innerHTML = "";
+  [
+    { label: "Oportunidades abiertas", value: summaryData.openCount || 0 },
+    { label: "Monto abierto", value: formatMoney(summaryData.totalAmount || 0) },
+    { label: "Monto ponderado", value: formatMoney(summaryData.weightedAmount || 0) },
+    { label: "Seguimientos vencidos", value: summaryData.overdueFollowUps || 0 },
+    { label: "Seguimientos esta semana", value: summaryData.dueThisWeek || 0 }
+  ].forEach((item) => {
+    const node = document.createElement("div");
+    node.className = "pipeline-summary-card";
+    node.innerHTML = `<span>${item.label}</span><b>${item.value}</b>`;
+    targetNode.appendChild(node);
+  });
+}
+
+function renderPipelineBoardGroup(targetNode, opportunities) {
+  targetNode.innerHTML = "";
+
+  if (!opportunities.length) {
+    targetNode.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>No encontramos oportunidades</h4>
+        <p>Probá cambiando los filtros o cargá una nueva oportunidad en esta categoría.</p>
+      </article>
+    `;
+    return;
+  }
+
+  crmCatalogs.opportunityStatuses.forEach((status) => {
+    const column = document.createElement("section");
+    column.className = "pipeline-column";
+    const items = opportunities.filter((opportunity) => opportunity.status === status);
+    column.innerHTML = `
+      <div class="pipeline-column-head">
+        <div>
+          <span class="opportunity-badge ${getOpportunityStatusClass(status)}">${status}</span>
+          <h3>${items.length}</h3>
+        </div>
+        <strong>${formatMoney(items.reduce((total, opportunity) => total + Number(opportunity.amount || 0), 0))}</strong>
+      </div>
+      <div class="pipeline-column-body"></div>
+    `;
+
+    const body = column.querySelector(".pipeline-column-body");
+    if (!items.length) {
+      body.innerHTML = '<div class="crm-empty-inline"><strong>Sin oportunidades</strong><span>Esta etapa todavía no tiene movimiento.</span></div>';
+    } else {
+      items.forEach((opportunity) => {
+        const cardClientName = opportunity.clientName || selectedClient?.name || "Cliente";
+        const cardType = opportunity.opportunityType || "Negociación";
+        const cardServiceLine = opportunity.serviceLine || "Sin línea";
+        const cardOwner = opportunity.ownerName || "Sin responsable";
+        const card = document.createElement("article");
+        card.className = "pipeline-card";
+        card.innerHTML = `
+          <p class="pipeline-card-company">${cardClientName}</p>
+          <h4>${opportunity.title}</h4>
+          <p class="pipeline-card-meta">${[cardType, cardServiceLine, cardOwner].join(" · ")}</p>
+          <div class="pipeline-card-kpis">
+            <strong>${formatMoney(opportunity.amount)}</strong>
+            <span>${opportunity.probability}%</span>
+          </div>
+          <p class="pipeline-card-next">${opportunity.nextFollowUp ? `Próximo: ${opportunity.nextFollowUp.title} · ${formatDate(opportunity.nextFollowUp.dueDate)}` : "Sin próximo paso"}</p>
+        `;
+
+        card.addEventListener("click", async () => {
+          await openClientDetail(opportunity.clientId, { branchId: opportunity.branchId || null, smooth: true });
+        });
+
+        body.appendChild(card);
+      });
+    }
+
+    targetNode.appendChild(column);
+  });
+}
+
+function renderPipelineBoard() {
+  pipelineVisibleCount.textContent = `${pipelineOpportunities.length} oportunidades`;
+  const projectOpportunities = pipelineOpportunities.filter((opportunity) => opportunity.serviceLine === "Obras C.I.");
+  const serviceOpportunities = pipelineOpportunities.filter((opportunity) =>
+    ["Instalaciones Fijas", "Extintores", "Multiservicio"].includes(opportunity.serviceLine)
+  );
+
+  renderPipelineSummary(pipelineSummaryProjects, buildCrmSummaryClientSide(projectOpportunities));
+  renderPipelineSummary(pipelineSummaryServices, buildCrmSummaryClientSide(serviceOpportunities));
+  renderPipelineBoardGroup(pipelineProjectsBoard, projectOpportunities);
+  renderPipelineBoardGroup(pipelineServicesBoard, serviceOpportunities);
+}
+
 function renderMeetingCard(meeting) {
   const fragment = meetingCardTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".meeting-card");
@@ -1137,6 +1763,10 @@ function renderMeetingCard(meeting) {
 
   const meta = [];
   if (meeting.branchId && meeting.branchName) meta.push(`Sucursal: ${meeting.branchName}`);
+  const linkedOpportunityTitle =
+    meeting.opportunityTitle ||
+    selectedClient?.opportunities?.find((opportunity) => Number(opportunity.id) === Number(meeting.opportunityId))?.title;
+  if (linkedOpportunityTitle) meta.push(`Oportunidad: ${linkedOpportunityTitle}`);
   if (meeting.participants) meta.push(`Participantes: ${meeting.participants}`);
   if (meeting.contactName || meeting.contactRole) {
     meta.push(`Contacto: ${[meeting.contactName, meeting.contactRole].filter(Boolean).join(" · ")}`);
@@ -1176,6 +1806,13 @@ function renderCompactMeetingListItem(meeting) {
       <h4 class="meeting-list-item-title">${meeting.subject}</h4>
       <p class="meeting-list-item-meta">${[
         meeting.kindLabel || typeMeta.label,
+        meeting.opportunityId
+          ? `Oportunidad: ${
+              meeting.opportunityTitle ||
+              selectedClient?.opportunities?.find((opportunity) => Number(opportunity.id) === Number(meeting.opportunityId))?.title ||
+              "Vinculada"
+            }`
+          : "",
         meeting.contactName ? `${meeting.contactName}${meeting.contactRole ? ` · ${meeting.contactRole}` : ""}` : "",
         meeting.modality || ""
       ]
@@ -1384,8 +2021,13 @@ function openMeetingDetailScreen(meeting) {
 
 function renderDetail() {
   if (!selectedClient) return;
+  opportunityForm.classList.add("hidden");
+  followUpForm.classList.add("hidden");
+  syncModalState();
   const meetings = Array.isArray(selectedClient.meetings) ? selectedClient.meetings : [];
   const parentMeetings = meetings.filter((meeting) => !meeting.branchId);
+  const opportunities = getVisibleOpportunities();
+  const crmSummary = buildCrmSummaryClientSide(opportunities);
   const currentEntity = selectedBranchView || selectedClient;
   const entityMeetings = selectedBranchView
     ? meetings.filter((meeting) => Number(meeting.branchId) === Number(selectedBranchView.id))
@@ -1408,6 +2050,9 @@ function renderDetail() {
     : `${currentEntity.sector} · ${currentEntity.companyType} · ${currentEntity.country} · ${currentEntity.accountStage} · Ejecutivo: ${currentEntity.executiveName || currentEntity.manager} · Riesgo ${currentEntity.risk}${supervisorSummary ? ` · ${supervisorSummary}` : ""}`;
   detailSegment.textContent = `Segmento ${currentEntity.segment}`;
   detailServices.innerHTML = renderServices(currentEntity);
+  renderMeetingOpportunityOptions();
+  renderOpportunityBranchOptions(selectedBranchView ? selectedBranchView.id : "");
+  renderDetailSectionNav();
 
   detailKpis.innerHTML = "";
   if (selectedBranchView) {
@@ -1416,7 +2061,8 @@ function renderDetail() {
       renderRoleAssignmentsCard("Supervisor IFCI", currentEntity.supervisors?.fixedFire?.name),
       renderRoleAssignmentsCard("Supervisor EXT", currentEntity.supervisors?.extinguishers?.name),
       renderRoleAssignmentsCard("Supervisor Obra", currentEntity.supervisors?.works?.name),
-      kpiItem("Reuniones", `${entityMeetings.filter((meeting) => meeting.status === "Realizada").length}/${entityMeetings.length}`)
+      kpiItem("Reuniones", `${entityMeetings.filter((meeting) => meeting.status === "Realizada").length}/${entityMeetings.length}`),
+      kpiItem("Pipeline", `${crmSummary.openCount} abiertas`)
     );
   } else {
     detailKpis.append(
@@ -1424,9 +2070,12 @@ function renderDetail() {
       renderRoleAssignmentsCard("Supervisor IFCI", selectedClient.supervisors?.fixedFire?.name),
       renderRoleAssignmentsCard("Supervisor EXT", selectedClient.supervisors?.extinguishers?.name),
       renderRoleAssignmentsCard("Supervisor Obra", selectedClient.supervisors?.works?.name),
-      kpiItem("Reuniones", `${meetingsCompleted}/${meetingsCount}`)
+      kpiItem("Reuniones", `${meetingsCompleted}/${meetingsCount}`),
+      kpiItem("Pipeline", `${crmSummary.openCount} abiertas`)
     );
   }
+
+  renderOpportunityList();
 
   meetingList.innerHTML = "";
 
@@ -1878,6 +2527,7 @@ function fillMeetingForm(meeting) {
   meetingContactName.value = meeting?.contactName || "";
   meetingContactRole.value = meeting?.contactRole || "";
   meetingStatusSelect.value = meeting?.status || defaultStatus;
+  renderMeetingOpportunityOptions(meeting?.opportunityId || "");
   meetingNextDate.value = meeting?.nextMeetingDate || "";
   meetingMinutes.value = meeting?.minutes || "";
   meetingNegotiationStatus.value = meeting?.activeNegotiationsStatus || meeting?.findings || "";
@@ -2018,6 +2668,23 @@ async function loadCatalogs() {
   renderTypeSelectOptions();
 }
 
+async function loadCrmCatalogs() {
+  const response = await fetch("/api/crm/catalogs");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar los catálogos comerciales");
+  }
+  crmCatalogs = {
+    opportunityStatuses: data.opportunityStatuses || [],
+    openOpportunityStatuses: data.openOpportunityStatuses || [],
+    opportunityTypes: data.opportunityTypes || [],
+    serviceLines: data.serviceLines || [],
+    followUpStatuses: data.followUpStatuses || [],
+    followUpTypes: data.followUpTypes || []
+  };
+  renderOpportunitySelects();
+}
+
 async function loadUsers() {
   const response = await fetch("/api/users");
   const data = await response.json();
@@ -2073,6 +2740,40 @@ async function hideClient(clientId) {
     throw new Error(data?.error || "No se pudo ocultar la compañía");
   }
   return data;
+}
+
+async function saveOpportunity(payload) {
+  const endpoint = editingOpportunityId
+    ? `/api/clients/${selectedClient.id}/opportunities/${editingOpportunityId}`
+    : `/api/clients/${selectedClient.id}/opportunities`;
+  const method = editingOpportunityId ? "PATCH" : "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar la oportunidad");
+  }
+  return data.opportunity;
+}
+
+async function saveFollowUp(opportunityId, followUpId, payload) {
+  const endpoint = followUpId
+    ? `/api/opportunities/${opportunityId}/follow-ups/${followUpId}`
+    : `/api/opportunities/${opportunityId}/follow-ups`;
+  const method = followUpId ? "PATCH" : "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar el seguimiento");
+  }
+  return data.followUp;
 }
 
 async function exportVisits() {
@@ -2185,6 +2886,35 @@ async function loadVisitsGrid() {
   }
 }
 
+function getPipelineFilters() {
+  return {
+    search: pipelineSearchInput.value.trim(),
+    ownerUserId: pipelineOwnerFilter.value,
+    status: pipelineStatusFilter.value
+  };
+}
+
+async function loadPipeline() {
+  try {
+    const response = await fetch(`/api/pipeline?${buildQuery(getPipelineFilters())}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudo cargar el pipeline");
+    }
+    pipelineOpportunities = data.opportunities || [];
+    pipelineSummaryData = data.summary || pipelineSummaryData;
+    renderPipelineBoard();
+  } catch (error) {
+    console.error(error);
+    pipelineBoard.innerHTML = `
+      <article class="empty-meeting-state">
+        <h4>Error al cargar el pipeline</h4>
+        <p>No pudimos cargar las oportunidades comerciales.</p>
+      </article>
+    `;
+  }
+}
+
 async function loadCurrentUser() {
   try {
     const response = await fetch("/api/auth/me");
@@ -2256,7 +2986,7 @@ backToList.addEventListener("click", () => {
 });
 
 backFromEdit.addEventListener("click", () => {
-  if (editMode === "edit" && selectedClient) {
+  if (selectedClient) {
     showScreen("detail");
     syncUrlWithState("detail");
     return;
@@ -2286,6 +3016,8 @@ goToEditBtn.addEventListener("click", () => {
 });
 
 goToMeetingBtn.addEventListener("click", () => {
+  detailSection = "visits";
+  renderDetailSectionNav();
   openMeetingScreen();
 });
 
@@ -2301,6 +3033,18 @@ showVisitsBtn.addEventListener("click", async () => {
   syncUrlWithState("visits");
 });
 
+showPipelineBtn.addEventListener("click", async () => {
+  await loadPipeline();
+  showScreen("pipeline");
+  syncUrlWithState("pipeline");
+});
+
+openPipelineFromCrmBtn.addEventListener("click", async () => {
+  await loadPipeline();
+  showScreen("pipeline");
+  syncUrlWithState("pipeline");
+});
+
 showVisitsGridBtn.addEventListener("click", async () => {
   await loadVisitsGrid();
   showScreen("visits-grid");
@@ -2312,13 +3056,6 @@ showCalendarBtn.addEventListener("click", async () => {
   await loadCalendar();
   showScreen("calendar");
   syncUrlWithState("calendar");
-});
-
-showUsersBtn.addEventListener("click", async () => {
-  if (!canAccessSettings()) return;
-  await loadUsers();
-  showScreen("users");
-  syncUrlWithState("users");
 });
 
 showSettingsBtn.addEventListener("click", async () => {
@@ -2520,6 +3257,47 @@ addBranchBtn.addEventListener("click", () => {
   openBranchCreateScreen();
 });
 
+newOpportunityBtn.addEventListener("click", () => {
+  detailSection = "opportunities";
+  renderDetailSectionNav();
+  openOpportunityForm();
+});
+
+showDetailOpportunitiesBtn.addEventListener("click", () => {
+  detailSection = "opportunities";
+  renderDetailSectionNav();
+});
+
+showDetailVisitsBtn.addEventListener("click", () => {
+  detailSection = "visits";
+  renderDetailSectionNav();
+});
+
+cancelOpportunityEditBtn.addEventListener("click", () => {
+  resetOpportunityForm();
+});
+
+cancelFollowUpEditBtn.addEventListener("click", () => {
+  resetFollowUpForm();
+});
+
+opportunityStatusSelect.addEventListener("change", () => {
+  syncOpportunityLossReasonVisibility();
+});
+
+pipelineSearchInput.addEventListener("input", () => {
+  clearTimeout(pipelineSearchTimer);
+  pipelineSearchTimer = setTimeout(() => {
+    loadPipeline();
+  }, 250);
+});
+
+[pipelineOwnerFilter, pipelineStatusFilter].forEach((input) => {
+  input.addEventListener("change", () => {
+    loadPipeline();
+  });
+});
+
 userCreateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   createUserBtn.disabled = true;
@@ -2643,6 +3421,76 @@ meetingScope.addEventListener("change", () => {
   syncMeetingContextBlocks();
 });
 
+opportunityForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!selectedClient) return;
+
+  const amountResult = parseNumericInput(opportunityAmount, { min: 0 });
+  const probabilityResult = parseNumericInput(opportunityProbability, { integer: true, min: 0, max: 100 });
+
+  if (!amountResult.ok || !probabilityResult.ok) {
+    opportunityStatusMessage.textContent = "Completá monto y probabilidad con valores válidos.";
+    return;
+  }
+
+  saveOpportunityBtn.disabled = true;
+  opportunityStatusMessage.textContent = "Guardando oportunidad...";
+
+  try {
+    await saveOpportunity({
+      title: opportunityTitle.value.trim(),
+      opportunityType: opportunityType.value,
+      serviceLine: opportunityServiceLine.value,
+      status: opportunityStatusSelect.value,
+      amount: amountResult.value,
+      probability: probabilityResult.value,
+      expectedCloseDate: opportunityExpectedCloseDate.value,
+      ownerUserId: opportunityOwnerUserId.value ? Number(opportunityOwnerUserId.value) : null,
+      branchId: opportunityBranchId.value ? Number(opportunityBranchId.value) : null,
+      source: opportunitySource.value.trim(),
+      description: opportunityDescription.value.trim(),
+      lossReason: opportunityLossReason.value.trim()
+    });
+    await loadClientDetail(selectedClient.id);
+    await loadClients({ clearSelectionWhenMissing: false });
+    await loadPipeline();
+    renderTable();
+    resetOpportunityForm();
+  } catch (error) {
+    opportunityStatusMessage.textContent = error.message;
+  } finally {
+    saveOpportunityBtn.disabled = false;
+  }
+});
+
+followUpForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!selectedClient || !followUpOpportunityId) return;
+
+  saveFollowUpBtn.disabled = true;
+  followUpStatusMessage.textContent = "Guardando seguimiento...";
+
+  try {
+    await saveFollowUp(followUpOpportunityId, editingFollowUpId, {
+      type: followUpType.value,
+      title: followUpTitle.value.trim(),
+      dueDate: followUpDueDate.value,
+      assignedUserId: followUpAssignedUserId.value ? Number(followUpAssignedUserId.value) : null,
+      status: followUpStatusSelect.value,
+      notes: followUpNotes.value.trim()
+    });
+    await loadClientDetail(selectedClient.id);
+    await loadClients({ clearSelectionWhenMissing: false });
+    await loadPipeline();
+    renderTable();
+    resetFollowUpForm();
+  } catch (error) {
+    followUpStatusMessage.textContent = error.message;
+  } finally {
+    saveFollowUpBtn.disabled = false;
+  }
+});
+
 companyEditForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2754,6 +3602,7 @@ meetingForm.addEventListener("submit", async (event) => {
     scheduledFor: meetingDate.value,
     modality: meetingModality.value,
     branchId: meetingScope.value.startsWith("branch:") ? Number(meetingScope.value.split(":")[1]) : null,
+    opportunityId: meetingOpportunity.value ? Number(meetingOpportunity.value) : null,
     participants: participantNames.join(", "),
     participantUserIds,
     contactName: meetingContactName.value.trim(),
@@ -2844,6 +3693,7 @@ loginForm.addEventListener("submit", async (event) => {
     loginPassword.value = "";
     showScreen("list");
     await loadCatalogs();
+    await loadCrmCatalogs();
     await loadAssignmentOptions();
     if (canAccessSettings()) {
       await loadSettingsCatalogs();
@@ -2867,6 +3717,9 @@ logoutBtn.addEventListener("click", async () => {
   clients = [];
   users = [];
   calendarMeetings = [];
+  pipelineOpportunities = [];
+  resetOpportunityForm();
+  resetFollowUpForm();
   updateAuthUi();
   showScreen("list");
   replaceHash("#/clientes");
@@ -2883,6 +3736,7 @@ renderMeetingTypeColorOptions();
 loadCurrentUser().then(async (loggedIn) => {
   if (loggedIn) {
     await loadCatalogs();
+    await loadCrmCatalogs();
     await loadAssignmentOptions();
     if (canAccessSettings()) {
       await loadSettingsCatalogs();

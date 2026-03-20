@@ -8,6 +8,7 @@
     "start": "node backend/server.js",
     "seed": "node backend/seed.js",
     "dev": "node backend/server.js",
+    "deploy:prod": "bash scripts/deploy-production.sh",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },

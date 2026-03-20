@@ -221,6 +221,7 @@ h1 {
   justify-content: flex-end;
   align-items: center;
   gap: 0.7rem;
+  flex-wrap: wrap;
 }
 
 .nav-menu {
@@ -887,7 +888,7 @@ tr.active {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .detail-top {
@@ -1913,6 +1914,34 @@ tr.active {
 }
 
 @media (max-width: 1040px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.15rem;
+  }
+
+  .topbar-side,
+  .topbar-user {
+    width: 100%;
+  }
+
+  .topbar-side {
+    justify-items: stretch;
+  }
+
+  .topbar-user {
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .view-switch {
+    justify-content: flex-start;
+  }
+
+  .topbar-kpis {
+    justify-content: flex-start;
+  }
+
   .toolbar {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -1977,6 +2006,11 @@ tr.active {
     padding: 0.7rem;
   }
 
+  .topbar {
+    padding: 0.9rem;
+    gap: 0.8rem;
+  }
+
   .toolbar,
   .kpi-grid,
   .meeting-body,
@@ -2004,11 +2038,71 @@ tr.active {
 
   .nav-menu {
     display: grid;
+    width: 100%;
+  }
+
+  .nav-menu.hidden {
+    display: none !important;
   }
 
   .nav-parent-btn,
   .nav-submenu-btn {
     width: 100%;
+  }
+
+  .view-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.45rem;
+  }
+
+  .topbar-user {
+    gap: 0.6rem;
+  }
+
+  .view-switch > .secondary-btn,
+  .view-switch > .nav-menu,
+  #currentUserBadge {
+    width: 100%;
+  }
+
+  .view-switch .secondary-btn,
+  .view-switch .nav-parent-btn,
+  .view-switch .nav-submenu-btn,
+  #logoutBtn {
+    min-height: 46px;
+    padding: 0.68rem 0.85rem;
+    border-radius: 18px;
+    font-size: 0.92rem;
+  }
+
+  .view-switch .secondary-btn,
+  .view-switch .nav-parent-btn {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .view-switch .nav-submenu-btn {
+    justify-content: center;
+    text-align: center;
+  }
+
+  #logoutBtn {
+    width: 100%;
+  }
+
+  #currentUserBadge {
+    text-align: left;
+    padding: 0.75rem 0.9rem;
+    border-radius: 18px;
+  }
+
+  .topbar-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.45rem;
   }
 
   .nav-submenu {
@@ -2027,11 +2121,40 @@ tr.active {
 
   .brand-block {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
   .brand-logo {
-    width: 155px;
+    width: 138px;
+    max-width: 160px;
+  }
+
+  .brand-block h1 {
+    font-size: clamp(1.9rem, 7vw, 2.5rem);
+    line-height: 1.04;
+  }
+
+  .brand-block .eyebrow {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+  }
+
+  .kpi-chip {
+    min-width: 0;
+    padding: 0.72rem 0.78rem;
+    border-radius: 20px;
+  }
+
+  .kpi-chip b {
+    font-size: 1.1rem;
+    margin-bottom: 0.16rem;
+  }
+
+  .kpi-chip span {
+    font-size: 0.74rem;
+    line-height: 1.2;
   }
 
   .span-2 {
@@ -2052,6 +2175,23 @@ tr.active {
 }
 
 @media (max-width: 520px) {
+  .topbar {
+    border-radius: 16px;
+  }
+
+  .view-switch,
+  .topbar-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-block h1 {
+    font-size: clamp(1.75rem, 8.2vw, 2.2rem);
+  }
+
+  .brand-logo {
+    width: 124px;
+  }
+
   .toolbar {
     grid-template-columns: 1fr;
   }

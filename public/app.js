@@ -18,6 +18,7 @@ const DEFAULT_OPPORTUNITY_TYPES = ["Proyecto", "Negociación"];
 const DEFAULT_SERVICE_LINES = ["Instalaciones Fijas", "Extintores", "Obras C.I.", "Multiservicio", "Otro"];
 const DEFAULT_FOLLOW_UP_TYPES = ["Llamada", "Email", "Visita", "Cotización", "Recordatorio", "Reunión"];
 const DEFAULT_FOLLOW_UP_STATUSES = ["Pendiente", "Hecho"];
+const CRM_ENABLED = false;
 
 const loginScreen = document.getElementById("loginScreen");
 const appContent = document.getElementById("appContent");
@@ -31,6 +32,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 const showClientsBtn = document.getElementById("showClientsBtn");
 const showVisitsBtn = document.getElementById("showVisitsBtn");
 const showPipelineBtn = document.getElementById("showPipelineBtn");
+const crmMenu = document.getElementById("crmMenu");
 const showVisitsGridBtn = document.getElementById("showVisitsGridBtn");
 const showCalendarBtn = document.getElementById("showCalendarBtn");
 const showUsersBtn = document.getElementById("showUsersBtn");
@@ -280,7 +282,7 @@ let visitsSort = {
   direction: "desc"
 };
 let selectedParticipantUserIds = [];
-let detailSection = "opportunities";
+let detailSection = CRM_ENABLED ? "opportunities" : "visits";
 let crmCatalogs = {
   opportunityStatuses: [],
   openOpportunityStatuses: [],
@@ -323,6 +325,7 @@ function updateAuthUi() {
   const loggedIn = !!currentUser;
   loginScreen.classList.toggle("hidden", loggedIn);
   appContent.classList.toggle("hidden", !loggedIn);
+  crmMenu.classList.toggle("hidden", !CRM_ENABLED);
   showSettingsBtn.classList.toggle("hidden", !loggedIn || !canAccessSettings());
   currentUserBadge.innerHTML = loggedIn
     ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
@@ -929,7 +932,8 @@ function syncSupervisorVisibility() {
 }
 
 function showScreen(screen) {
-  const nextScreen = !canAccessSettings() && (screen === "settings" || screen === "users") ? "list" : screen;
+  const requestedScreen = !CRM_ENABLED && screen === "pipeline" ? "list" : screen;
+  const nextScreen = !canAccessSettings() && (requestedScreen === "settings" || requestedScreen === "users") ? "list" : requestedScreen;
   listScreen.classList.toggle("hidden", nextScreen !== "list");
   visitsScreen.classList.toggle("hidden", nextScreen !== "visits");
   pipelineScreen.classList.toggle("hidden", nextScreen !== "pipeline");
@@ -945,7 +949,7 @@ function showScreen(screen) {
     nextScreen === "list" || nextScreen === "detail" || nextScreen === "edit" || nextScreen === "meeting"
   );
   showVisitsBtn.classList.toggle("active-view", nextScreen === "visits" || nextScreen === "visits-grid" || nextScreen === "calendar");
-  showPipelineBtn.classList.toggle("active-view", nextScreen === "pipeline");
+  showPipelineBtn.classList.toggle("active-view", CRM_ENABLED && nextScreen === "pipeline");
   showVisitsGridBtn.classList.toggle("active-view", nextScreen === "visits-grid");
   showCalendarBtn.classList.toggle("active-view", nextScreen === "calendar");
   showSettingsBtn.classList.toggle("active-view", nextScreen === "settings" || nextScreen === "users");
@@ -981,6 +985,10 @@ function syncUrlWithState(screen) {
     return;
   }
   if (screen === "pipeline") {
+    if (!CRM_ENABLED) {
+      replaceHash("#/clientes");
+      return;
+    }
     replaceHash("#/pipeline");
     return;
   }
@@ -1077,6 +1085,11 @@ async function applyRouteFromHash() {
   }
 
   if (route.screen === "pipeline") {
+    if (!CRM_ENABLED) {
+      showScreen("list");
+      replaceHash("#/clientes");
+      return;
+    }
     await loadPipeline();
     showScreen("pipeline");
     return;
@@ -1110,14 +1123,21 @@ async function applyRouteFromHash() {
 
 function computeGlobalKpis(globalData) {
   globalKpis.innerHTML = "";
-  [
+  const items = [
     { label: "Reuniones agendadas", value: globalData.meetingsScheduled || 0 },
     { label: "Reuniones confirmadas", value: globalData.meetingsConfirmed || 0 },
     { label: "Reuniones realizadas", value: globalData.meetingsCompleted || 0 },
-    { label: "Clientes visitados", value: globalData.clientsVisited || 0 },
-    { label: "Oportunidades abiertas", value: globalData.openOpportunities || 0 },
-    { label: "Follow-ups vencidos", value: globalData.overdueFollowUps || 0 }
-  ].forEach((kpi) => {
+    { label: "Clientes visitados", value: globalData.clientsVisited || 0 }
+  ];
+
+  if (CRM_ENABLED) {
+    items.push(
+      { label: "Oportunidades abiertas", value: globalData.openOpportunities || 0 },
+      { label: "Follow-ups vencidos", value: globalData.overdueFollowUps || 0 }
+    );
+  }
+
+  items.forEach((kpi) => {
     const chip = document.createElement("div");
     chip.className = "kpi-chip";
     chip.innerHTML = `<b>${kpi.value}</b><span>${kpi.label}</span>`;
@@ -1386,6 +1406,13 @@ function renderCrmSummary(opportunities) {
 }
 
 function renderDetailSectionNav() {
+  if (!CRM_ENABLED) {
+    detailOpportunitiesSection.classList.add("hidden");
+    showDetailOpportunitiesBtn.classList.add("hidden");
+    detailVisitsSection.classList.remove("hidden");
+    showDetailVisitsBtn.classList.add("active-view");
+    return;
+  }
   const showingOpportunities = detailSection === "opportunities";
   detailOpportunitiesSection.classList.toggle("hidden", !showingOpportunities);
   detailVisitsSection.classList.toggle("hidden", showingOpportunities);
@@ -2026,8 +2053,8 @@ function renderDetail() {
   syncModalState();
   const meetings = Array.isArray(selectedClient.meetings) ? selectedClient.meetings : [];
   const parentMeetings = meetings.filter((meeting) => !meeting.branchId);
-  const opportunities = getVisibleOpportunities();
-  const crmSummary = buildCrmSummaryClientSide(opportunities);
+  const opportunities = CRM_ENABLED ? getVisibleOpportunities() : [];
+  const crmSummary = CRM_ENABLED ? buildCrmSummaryClientSide(opportunities) : { openCount: 0 };
   const currentEntity = selectedBranchView || selectedClient;
   const entityMeetings = selectedBranchView
     ? meetings.filter((meeting) => Number(meeting.branchId) === Number(selectedBranchView.id))
@@ -2061,8 +2088,7 @@ function renderDetail() {
       renderRoleAssignmentsCard("Supervisor IFCI", currentEntity.supervisors?.fixedFire?.name),
       renderRoleAssignmentsCard("Supervisor EXT", currentEntity.supervisors?.extinguishers?.name),
       renderRoleAssignmentsCard("Supervisor Obra", currentEntity.supervisors?.works?.name),
-      kpiItem("Reuniones", `${entityMeetings.filter((meeting) => meeting.status === "Realizada").length}/${entityMeetings.length}`),
-      kpiItem("Pipeline", `${crmSummary.openCount} abiertas`)
+      kpiItem("Reuniones", `${entityMeetings.filter((meeting) => meeting.status === "Realizada").length}/${entityMeetings.length}`)
     );
   } else {
     detailKpis.append(
@@ -2070,12 +2096,13 @@ function renderDetail() {
       renderRoleAssignmentsCard("Supervisor IFCI", selectedClient.supervisors?.fixedFire?.name),
       renderRoleAssignmentsCard("Supervisor EXT", selectedClient.supervisors?.extinguishers?.name),
       renderRoleAssignmentsCard("Supervisor Obra", selectedClient.supervisors?.works?.name),
-      kpiItem("Reuniones", `${meetingsCompleted}/${meetingsCount}`),
-      kpiItem("Pipeline", `${crmSummary.openCount} abiertas`)
+      kpiItem("Reuniones", `${meetingsCompleted}/${meetingsCount}`)
     );
   }
 
-  renderOpportunityList();
+  if (CRM_ENABLED) {
+    renderOpportunityList();
+  }
 
   meetingList.innerHTML = "";
 
@@ -3034,12 +3061,14 @@ showVisitsBtn.addEventListener("click", async () => {
 });
 
 showPipelineBtn.addEventListener("click", async () => {
+  if (!CRM_ENABLED) return;
   await loadPipeline();
   showScreen("pipeline");
   syncUrlWithState("pipeline");
 });
 
 openPipelineFromCrmBtn.addEventListener("click", async () => {
+  if (!CRM_ENABLED) return;
   await loadPipeline();
   showScreen("pipeline");
   syncUrlWithState("pipeline");
@@ -3258,12 +3287,14 @@ addBranchBtn.addEventListener("click", () => {
 });
 
 newOpportunityBtn.addEventListener("click", () => {
+  if (!CRM_ENABLED) return;
   detailSection = "opportunities";
   renderDetailSectionNav();
   openOpportunityForm();
 });
 
 showDetailOpportunitiesBtn.addEventListener("click", () => {
+  if (!CRM_ENABLED) return;
   detailSection = "opportunities";
   renderDetailSectionNav();
 });

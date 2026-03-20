@@ -82,6 +82,9 @@ function inferMeetingKind(text) {
 }
 
 async function seedDefaultUsers() {
+  const existingUsers = await query("SELECT COUNT(*)::int AS count FROM users");
+  if (Number(existingUsers.rows[0]?.count || 0) > 0) return;
+
   const users = [
     ["Admin MAXI", "admin@maxi.local", "admin1234", USER_ROLES.COMMERCIAL_MANAGER],
     ["Comercial Maxi", "comercial@maxi.local", "comercial1234", USER_ROLES.EXECUTIVE],
@@ -97,11 +100,7 @@ async function seedDefaultUsers() {
         `
         INSERT INTO users (name, email, password_hash, role)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (email) DO UPDATE
-        SET
-          name = EXCLUDED.name,
-          password_hash = EXCLUDED.password_hash,
-          role = EXCLUDED.role
+        ON CONFLICT (email) DO NOTHING
         `,
         [name, email, hashPassword(password), role]
       );
@@ -135,17 +134,16 @@ async function seedSectorOptions() {
 }
 
 async function seedMeetingTypeOptions() {
+  const existingTypes = await query("SELECT COUNT(*)::int AS count FROM meeting_type_options");
+  if (Number(existingTypes.rows[0]?.count || 0) > 0) return;
+
   await withTransaction(async (client) => {
     for (const [index, type] of MEETING_TYPES.entries()) {
       await client.query(
         `
         INSERT INTO meeting_type_options (value, label, color, sort_order)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (value) DO UPDATE
-        SET
-          label = EXCLUDED.label,
-          color = EXCLUDED.color,
-          sort_order = EXCLUDED.sort_order
+        ON CONFLICT (value) DO NOTHING
         `,
         [type.value, type.label, type.color, index + 1]
       );
@@ -154,14 +152,16 @@ async function seedMeetingTypeOptions() {
 }
 
 async function seedMeetingReasonOptions() {
+  const existingReasons = await query("SELECT COUNT(*)::int AS count FROM meeting_reason_options");
+  if (Number(existingReasons.rows[0]?.count || 0) > 0) return;
+
   await withTransaction(async (client) => {
     for (const [index, reason] of MEETING_REASONS.entries()) {
       await client.query(
         `
         INSERT INTO meeting_reason_options (name, sort_order)
         VALUES ($1, $2)
-        ON CONFLICT (name) DO UPDATE
-        SET sort_order = EXCLUDED.sort_order
+        ON CONFLICT (name) DO NOTHING
         `,
         [reason, index + 1]
       );

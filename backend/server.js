@@ -4,7 +4,21 @@ const path = require("path");
 const session = require("express-session");
 const XLSX = require("xlsx");
 const { query, hashPassword, initDb, withTransaction } = require("./db");
-const { MEETING_STATUS, MEETING_TYPES, MEETING_REASONS, USER_ROLES, USER_ROLE_OPTIONS } = require("./constants");
+const {
+  MEETING_STATUS,
+  MEETING_TYPES,
+  MEETING_REASONS,
+  USER_ROLES,
+  USER_ROLE_OPTIONS,
+  OPPORTUNITY_STATUS,
+  OPPORTUNITY_STATUS_OPTIONS,
+  OPPORTUNITY_OPEN_STATUSES,
+  OPPORTUNITY_SERVICE_LINES,
+  OPPORTUNITY_TYPES,
+  FOLLOW_UP_STATUS,
+  FOLLOW_UP_STATUS_OPTIONS,
+  FOLLOW_UP_TYPES
+} = require("./constants");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +30,16 @@ const VALID_ACCOUNT_STAGES = new Set(["Activa", "Prospecto"]);
 const VALID_MEETING_STATUS = new Set(Object.values(MEETING_STATUS));
 const MEETING_MODALITIES = ["Virtual", "Presencial"];
 const VALID_MEETING_MODALITIES = new Set(MEETING_MODALITIES);
+const VALID_OPPORTUNITY_STATUS = new Set(OPPORTUNITY_STATUS_OPTIONS);
+const VALID_SERVICE_LINES = new Set(OPPORTUNITY_SERVICE_LINES);
+const VALID_OPPORTUNITY_TYPES = new Set(OPPORTUNITY_TYPES);
+const VALID_FOLLOW_UP_STATUS = new Set(FOLLOW_UP_STATUS_OPTIONS);
+const VALID_FOLLOW_UP_TYPES = new Set(FOLLOW_UP_TYPES);
+const OPEN_OPPORTUNITY_STATUS_SET = new Set(OPPORTUNITY_OPEN_STATUSES);
+const OPPORTUNITY_STATUS_SORT_ORDER = OPPORTUNITY_STATUS_OPTIONS.reduce((accumulator, status, index) => {
+  accumulator[status] = index;
+  return accumulator;
+}, {});
 const EXECUTIVE_ROLE = USER_ROLES.EXECUTIVE;
 const SUPERVISOR_ROLE_BY_SERVICE = {
   fixedFire: USER_ROLES.SUPERVISOR_IFCI,
@@ -570,7 +594,9 @@ function toMeetingObject(row) {
   return {
     id: row.id,
     clientId: row.client_id,
+    clientName: row.client_name || "",
     branchId: row.branch_id,
+    opportunityId: row.opportunity_id || null,
     kind: row.kind,
     subject: row.subject,
     objective: row.objective,
@@ -592,8 +618,203 @@ function toMeetingObject(row) {
     createdBy: row.created_by,
     status: row.status,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    opportunityTitle: row.opportunity_title || ""
+  };
+}
+
+function toOpportunityObject(row) {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    clientName: row.client_name || "",
+    branchId: row.branch_id,
+    branchName: row.branch_name || "",
+    title: row.title,
+    opportunityType: row.opportunity_type,
+    serviceLine: row.service_line,
+    status: row.status,
+    amount: Number(row.amount || 0),
+    probability: Number(row.probability || 0),
+    expectedCloseDate: row.expected_close_date || "",
+    ownerUserId: row.owner_user_id || null,
+    ownerName: row.owner_name || "",
+    source: row.source || "",
+    description: row.description || "",
+    lossReason: row.loss_reason || "",
+    createdBy: row.created_by || "",
+    createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function toFollowUpObject(row) {
+  return {
+    id: row.id,
+    opportunityId: row.opportunity_id,
+    type: row.type,
+    title: row.title,
+    dueDate: row.due_date || "",
+    status: row.status,
+    assignedUserId: row.assigned_user_id || null,
+    assignedUserName: row.assigned_user_name || "",
+    notes: row.notes || "",
+    completedAt: row.completed_at,
+    createdBy: row.created_by || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isOpenOpportunityStatus(status) {
+  return OPEN_OPPORTUNITY_STATUS_SET.has(status);
+}
+
+function classifyFollowUpStatus(followUp) {
+  if (!followUp) return FOLLOW_UP_STATUS.PENDING;
+  if (followUp.status === FOLLOW_UP_STATUS.DONE) return FOLLOW_UP_STATUS.DONE;
+  if (followUp.dueDate && followUp.dueDate < todayKey()) return "Vencido";
+  return FOLLOW_UP_STATUS.PENDING;
+}
+
+function enrichOpportunity(opportunity, followUps = []) {
+  const sortedFollowUps = [...followUps].sort((left, right) => {
+    const leftPriority = classifyFollowUpStatus(left) === "Vencido" ? 0 : left.status === FOLLOW_UP_STATUS.PENDING ? 1 : 2;
+    const rightPriority = classifyFollowUpStatus(right) === "Vencido" ? 0 : right.status === FOLLOW_UP_STATUS.PENDING ? 1 : 2;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    return String(left.dueDate || "").localeCompare(String(right.dueDate || ""));
+  });
+
+  const pendingFollowUps = sortedFollowUps.filter((followUp) => followUp.status === FOLLOW_UP_STATUS.PENDING);
+  const overdueFollowUps = pendingFollowUps.filter((followUp) => followUp.dueDate && followUp.dueDate < todayKey());
+  const nextFollowUp = sortedFollowUps.find((followUp) => followUp.status === FOLLOW_UP_STATUS.PENDING) || null;
+
+  return {
+    ...opportunity,
+    followUps: sortedFollowUps.map((followUp) => ({
+      ...followUp,
+      visualStatus: classifyFollowUpStatus(followUp)
+    })),
+    pendingFollowUps: pendingFollowUps.length,
+    overdueFollowUps: overdueFollowUps.length,
+    nextFollowUp: nextFollowUp
+      ? {
+          ...nextFollowUp,
+          visualStatus: classifyFollowUpStatus(nextFollowUp)
+        }
+      : null,
+    weightedAmount: Math.round(opportunity.amount * (opportunity.probability / 100))
+  };
+}
+
+function buildCrmSummary(opportunities) {
+  const openOpportunities = opportunities.filter((opportunity) => isOpenOpportunityStatus(opportunity.status));
+  const overdueFollowUps = openOpportunities.reduce((total, opportunity) => total + Number(opportunity.overdueFollowUps || 0), 0);
+  const dueThisWeek = openOpportunities.reduce((total, opportunity) => {
+    const nextFollowUp = opportunity.nextFollowUp;
+    if (!nextFollowUp || nextFollowUp.status !== FOLLOW_UP_STATUS.PENDING || !nextFollowUp.dueDate) return total;
+    const delta = Math.floor((new Date(`${nextFollowUp.dueDate}T00:00:00`) - new Date(`${todayKey()}T00:00:00`)) / 86400000);
+    return delta >= 0 && delta <= 7 ? total + 1 : total;
+  }, 0);
+
+  return {
+    openCount: openOpportunities.length,
+    totalAmount: openOpportunities.reduce((total, opportunity) => total + opportunity.amount, 0),
+    weightedAmount: openOpportunities.reduce((total, opportunity) => total + opportunity.weightedAmount, 0),
+    overdueFollowUps,
+    dueThisWeek
+  };
+}
+
+async function attachFollowUpsToOpportunities(opportunities) {
+  if (!opportunities.length) return [];
+
+  const opportunityIds = opportunities.map((opportunity) => opportunity.id);
+  const { rows } = await query(
+    `
+    SELECT
+      opportunity_follow_ups.*,
+      assigned_user.name AS assigned_user_name
+    FROM opportunity_follow_ups
+    LEFT JOIN users AS assigned_user ON assigned_user.id = opportunity_follow_ups.assigned_user_id
+    WHERE opportunity_follow_ups.opportunity_id = ANY($1::INTEGER[])
+    ORDER BY opportunity_follow_ups.due_date ASC, opportunity_follow_ups.id ASC
+    `,
+    [opportunityIds]
+  );
+
+  const followUpsByOpportunity = rows.reduce((accumulator, row) => {
+    const followUp = toFollowUpObject(row);
+    if (!accumulator.has(followUp.opportunityId)) {
+      accumulator.set(followUp.opportunityId, []);
+    }
+    accumulator.get(followUp.opportunityId).push(followUp);
+    return accumulator;
+  }, new Map());
+
+  return opportunities.map((opportunity) => enrichOpportunity(opportunity, followUpsByOpportunity.get(opportunity.id) || []));
+}
+
+async function fetchOpportunities({
+  clientId = null,
+  search = "",
+  ownerUserId = null,
+  status = null
+} = {}) {
+  const where = ["clients.is_hidden = FALSE"];
+  const params = [];
+
+  if (clientId !== null) {
+    params.push(Number(clientId));
+    where.push(`opportunities.client_id = $${params.length}`);
+  }
+
+  if (search.trim()) {
+    params.push(`%${search.trim()}%`);
+    where.push(
+      `(opportunities.title ILIKE $${params.length} OR COALESCE(opportunities.source, '') ILIKE $${params.length} OR clients.name ILIKE $${params.length})`
+    );
+  }
+
+  if (ownerUserId !== null) {
+    params.push(Number(ownerUserId));
+    where.push(`opportunities.owner_user_id = $${params.length}`);
+  }
+
+  if (status !== null) {
+    params.push(status);
+    where.push(`opportunities.status = $${params.length}`);
+  }
+
+  const { rows } = await query(
+    `
+    SELECT
+      opportunities.*,
+      clients.name AS client_name,
+      client_branches.name AS branch_name,
+      owner_user.name AS owner_name
+    FROM opportunities
+    INNER JOIN clients ON clients.id = opportunities.client_id
+    LEFT JOIN client_branches ON client_branches.id = opportunities.branch_id
+    LEFT JOIN users AS owner_user ON owner_user.id = opportunities.owner_user_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY
+      CASE opportunities.status
+        ${OPPORTUNITY_STATUS_OPTIONS.map((currentStatus, index) => `WHEN '${currentStatus}' THEN ${index + 1}`).join(" ")}
+        ELSE 99
+      END ASC,
+      opportunities.expected_close_date ASC,
+      opportunities.updated_at DESC,
+      opportunities.id DESC
+    `,
+    params
+  );
+
+  return attachFollowUpsToOpportunities(rows.map(toOpportunityObject));
 }
 
 function normalizeParticipantUserIds(values) {
@@ -701,6 +922,7 @@ async function fetchVisits(filters = {}) {
       meetings.id,
       meetings.client_id,
       meetings.branch_id,
+      meetings.opportunity_id,
       meetings.kind,
       meetings.subject,
       meetings.objective,
@@ -790,13 +1012,15 @@ function buildMeetingSummary(meetings) {
 async function attachMeetingSummary(client) {
   const { rows } = await query(
     `
-    SELECT id, client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
-           modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
-           active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-           created_by, status, created_at, updated_at
+    SELECT meetings.id, meetings.client_id, meetings.branch_id, meetings.opportunity_id, meetings.kind, meetings.subject, meetings.objective, meetings.scheduled_for, meetings.participants, meetings.participant_user_ids, meetings.contact_name, meetings.contact_role,
+           meetings.modality, meetings.next_meeting_date, meetings.follow_up_from_meeting_id, meetings.minutes, meetings.findings,
+           meetings.active_negotiations_status, meetings.opportunities, meetings.substitute_recovery, meetings.global_contacts, meetings.service_status,
+           meetings.created_by, meetings.status, meetings.created_at, meetings.updated_at,
+           opportunities_table.title AS opportunity_title
     FROM meetings
-    WHERE client_id = $1
-    ORDER BY scheduled_for DESC, id DESC
+    LEFT JOIN opportunities AS opportunities_table ON opportunities_table.id = meetings.opportunity_id
+    WHERE meetings.client_id = $1
+    ORDER BY meetings.scheduled_for DESC, meetings.id DESC
     `,
     [client.id]
   );
@@ -814,13 +1038,26 @@ async function attachMeetingSummary(client) {
   };
 }
 
-async function buildClientResponse(row) {
+async function buildClientResponse(row, { includeCrm = true } = {}) {
   const ranked = await withBillingRank(toClientObject(row));
   const clientWithMeetings = await attachMeetingSummary(ranked);
   const branches = await fetchClientBranches(clientWithMeetings.id);
+
+  if (!includeCrm) {
+    return {
+      ...clientWithMeetings,
+      branches
+    };
+  }
+
+  const opportunities = await fetchOpportunities({ clientId: clientWithMeetings.id });
+  const crmSummary = buildCrmSummary(opportunities);
   return {
     ...clientWithMeetings,
-    branches
+    branches,
+    opportunities,
+    crmSummary,
+    openOpportunities: crmSummary.openCount
   };
 }
 
@@ -948,6 +1185,110 @@ async function validateParticipantUsers(participantUserIds) {
   return null;
 }
 
+async function validateAnyUser(userId, label) {
+  if (userId === null || userId === undefined || userId === "") return null;
+  const numericUserId = Number(userId);
+  if (!Number.isInteger(numericUserId) || numericUserId <= 0) {
+    return `${label} inválido`;
+  }
+
+  const { rows } = await query("SELECT id FROM users WHERE id = $1", [numericUserId]);
+  if (!rows[0]) return `${label} no encontrado`;
+  return null;
+}
+
+async function validateOpportunityPayload(payload, clientId) {
+  const errors = [];
+
+  if (typeof payload?.title !== "string" || !payload.title.trim()) {
+    errors.push("El nombre de la oportunidad es obligatorio");
+  }
+
+  if (!VALID_OPPORTUNITY_TYPES.has(payload?.opportunityType)) {
+    errors.push("El tipo de oportunidad es inválido");
+  }
+
+  if (!VALID_SERVICE_LINES.has(payload?.serviceLine)) {
+    errors.push("La línea de servicio es inválida");
+  }
+
+  if (!VALID_OPPORTUNITY_STATUS.has(payload?.status)) {
+    errors.push("El estado de la oportunidad es inválido");
+  }
+
+  const amount = Number(payload?.amount);
+  if (!Number.isFinite(amount) || amount < 0) {
+    errors.push("El monto debe ser un número mayor o igual a 0");
+  }
+
+  const probability = Number(payload?.probability);
+  if (!Number.isInteger(probability) || probability < 0 || probability > 100) {
+    errors.push("La probabilidad debe ser un entero entre 0 y 100");
+  }
+
+  if (payload?.expectedCloseDate !== undefined && typeof payload.expectedCloseDate !== "string") {
+    errors.push("La fecha estimada de cierre es inválida");
+  }
+
+  if (payload?.source !== undefined && typeof payload.source !== "string") {
+    errors.push("El origen debe ser texto");
+  }
+
+  if (payload?.description !== undefined && typeof payload.description !== "string") {
+    errors.push("La descripción debe ser texto");
+  }
+
+  if (payload?.lossReason !== undefined && typeof payload.lossReason !== "string") {
+    errors.push("El motivo de pérdida debe ser texto");
+  }
+
+  if (payload?.status === OPPORTUNITY_STATUS.LOST && !String(payload?.lossReason || "").trim()) {
+    errors.push("Debes indicar el motivo de pérdida");
+  }
+
+  const ownerError = await validateAnyUser(payload?.ownerUserId, "El responsable");
+  if (ownerError) errors.push(ownerError);
+
+  const branchId = payload?.branchId ? Number(payload.branchId) : null;
+  if (branchId) {
+    const branchResult = await query("SELECT id FROM client_branches WHERE id = $1 AND client_id = $2", [branchId, clientId]);
+    if (!branchResult.rows[0]) {
+      errors.push("La sucursal seleccionada no pertenece a esta compañía");
+    }
+  }
+
+  return errors;
+}
+
+async function validateFollowUpPayload(payload) {
+  const errors = [];
+
+  if (typeof payload?.title !== "string" || !payload.title.trim()) {
+    errors.push("El título del seguimiento es obligatorio");
+  }
+
+  if (typeof payload?.dueDate !== "string" || !payload.dueDate.trim()) {
+    errors.push("La fecha del seguimiento es obligatoria");
+  }
+
+  if (!VALID_FOLLOW_UP_TYPES.has(payload?.type)) {
+    errors.push("El tipo de seguimiento es inválido");
+  }
+
+  if (!VALID_FOLLOW_UP_STATUS.has(payload?.status)) {
+    errors.push("El estado del seguimiento es inválido");
+  }
+
+  if (payload?.notes !== undefined && typeof payload.notes !== "string") {
+    errors.push("Los comentarios del seguimiento deben ser texto");
+  }
+
+  const assignedError = await validateAnyUser(payload?.assignedUserId, "El usuario asignado");
+  if (assignedError) errors.push(assignedError);
+
+  return errors;
+}
+
 function normalizeMeetingStatus(payload) {
   const hasContent = [payload.minutes, payload.findings].some((value) => String(value || "").trim());
   if (payload.status && VALID_MEETING_STATUS.has(payload.status)) return payload.status;
@@ -1033,6 +1374,7 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
   const followUpValues = [
     meeting.clientId,
     meeting.branchId,
+    meeting.opportunityId,
     meeting.kind,
     meeting.subject,
     meeting.objective,
@@ -1061,28 +1403,29 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
       SET
         client_id = $1,
         branch_id = $2,
-        kind = $3,
-        subject = $4,
-        objective = $5,
-        scheduled_for = $6,
-        participants = $7,
-        participant_user_ids = $8,
-        contact_name = $9,
-        contact_role = $10,
-        modality = $11,
-        minutes = $12,
-        findings = $13,
-        active_negotiations_status = $14,
-        opportunities = $15,
-        substitute_recovery = $16,
-        global_contacts = $17,
-        service_status = $18,
-        created_by = $19,
-        status = $20,
+        opportunity_id = $3,
+        kind = $4,
+        subject = $5,
+        objective = $6,
+        scheduled_for = $7,
+        participants = $8,
+        participant_user_ids = $9,
+        contact_name = $10,
+        contact_role = $11,
+        modality = $12,
+        minutes = $13,
+        findings = $14,
+        active_negotiations_status = $15,
+        opportunities = $16,
+        substitute_recovery = $17,
+        global_contacts = $18,
+        service_status = $19,
+        created_by = $20,
+        status = $21,
         updated_at = NOW()
-      WHERE id = $21
+      WHERE id = $22
       `,
-      [...followUpValues.slice(0, 20), existingFollowUp.id]
+      [...followUpValues.slice(0, 21), existingFollowUp.id]
     );
     return;
   }
@@ -1090,11 +1433,11 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
   await client.query(
     `
     INSERT INTO meetings (
-      client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
+      client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
       contact_name, contact_role, modality, minutes, findings,
       active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
       created_by, status, follow_up_from_meeting_id, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), NOW())
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW())
     `,
     followUpValues
   );
@@ -1183,6 +1526,20 @@ app.get("/api/meeting-types", (_req, res) => {
 
 app.use("/api", requireAuth);
 app.use("/api/settings", requireSettingsAdmin);
+
+app.get(
+  "/api/crm/catalogs",
+  asyncHandler(async (_req, res) => {
+    res.json({
+      opportunityStatuses: OPPORTUNITY_STATUS_OPTIONS,
+      openOpportunityStatuses: OPPORTUNITY_OPEN_STATUSES,
+      opportunityTypes: OPPORTUNITY_TYPES,
+      serviceLines: OPPORTUNITY_SERVICE_LINES,
+      followUpStatuses: FOLLOW_UP_STATUS_OPTIONS,
+      followUpTypes: FOLLOW_UP_TYPES
+    });
+  })
+);
 
 app.get(
   "/api/settings/sectors",
@@ -1818,6 +2175,26 @@ app.get(
 );
 
 app.get(
+  "/api/pipeline",
+  asyncHandler(async (req, res) => {
+    const search = String(req.query.search || "").trim();
+    const ownerUserId = String(req.query.ownerUserId || "todos").trim();
+    const status = String(req.query.status || "todos").trim();
+
+    const opportunities = await fetchOpportunities({
+      search,
+      ownerUserId: ownerUserId !== "todos" ? Number(ownerUserId) : null,
+      status: status !== "todos" ? status : null
+    });
+
+    res.json({
+      opportunities,
+      summary: buildCrmSummary(opportunities)
+    });
+  })
+);
+
+app.get(
   "/api/clients",
   asyncHandler(async (req, res) => {
     const {
@@ -1865,7 +2242,7 @@ app.get(
       params
     );
 
-    const clients = await Promise.all(rows.map((row) => buildClientResponse(row)));
+    const clients = await Promise.all(rows.map((row) => buildClientResponse(row, { includeCrm: false })));
 
     const totalsResult = await query(
       "SELECT COUNT(*)::int AS total_clients, COALESCE(SUM(billing_2025), 0) AS total_billing FROM clients WHERE is_hidden = FALSE"
@@ -1882,6 +2259,7 @@ app.get(
       FROM meetings
     `);
     const meetingSummary = meetingSummaryResult.rows[0];
+    const crmSummary = buildCrmSummary(await fetchOpportunities());
 
     res.json({
       clients,
@@ -1894,6 +2272,10 @@ app.get(
         meetingsCompleted: meetingSummary.completed_meetings || 0,
         meetingsTotal: meetingSummary.total_meetings || 0,
         clientsVisited: meetingSummary.visited_clients || 0,
+        openOpportunities: crmSummary.openCount || 0,
+        pipelineAmount: crmSummary.totalAmount || 0,
+        weightedPipelineAmount: crmSummary.weightedAmount || 0,
+        overdueFollowUps: crmSummary.overdueFollowUps || 0,
         visitsPerVisitedClient: meetingSummary.visited_clients
           ? Number(meetingSummary.completed_meetings || 0) / Number(meetingSummary.visited_clients)
           : 0
@@ -1926,6 +2308,7 @@ app.get(
         meetings.id,
         meetings.client_id,
         meetings.branch_id,
+        meetings.opportunity_id,
         meetings.kind,
         meetings.subject,
         meetings.objective,
@@ -2023,7 +2406,7 @@ app.patch(
 
     const existingResult = await query(
       `
-      SELECT id, client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+      SELECT id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
              modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
              active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
              created_by, status, created_at, updated_at
@@ -2048,7 +2431,7 @@ app.patch(
           next_meeting_date = $2,
           updated_at = NOW()
         WHERE id = $3
-        RETURNING id, client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+        RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
                   active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
                   created_by, status, created_at, updated_at
@@ -2353,6 +2736,235 @@ app.patch(
 );
 
 app.post(
+  "/api/clients/:id/opportunities",
+  asyncHandler(async (req, res) => {
+    const clientId = Number(req.params.id);
+    const existingClientResult = await query("SELECT id FROM clients WHERE id = $1 AND is_hidden = FALSE", [clientId]);
+
+    if (!existingClientResult.rows[0]) {
+      res.status(404).json({ error: "Cliente no encontrado" });
+      return;
+    }
+
+    const payload = req.body || {};
+    const errors = await validateOpportunityPayload(payload, clientId);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0] });
+      return;
+    }
+
+    const currentUserResult = await query("SELECT name FROM users WHERE id = $1", [req.session.userId]);
+    const currentUser = currentUserResult.rows[0];
+    const result = await query(
+      `
+      INSERT INTO opportunities (
+        client_id, branch_id, title, opportunity_type, service_line, status, amount, probability, expected_close_date,
+        owner_user_id, source, description, loss_reason, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+      RETURNING id
+      `,
+      [
+        clientId,
+        payload.branchId ? Number(payload.branchId) : null,
+        payload.title.trim(),
+        payload.opportunityType,
+        payload.serviceLine,
+        payload.status,
+        Number(payload.amount),
+        Number(payload.probability),
+        String(payload.expectedCloseDate || "").trim(),
+        payload.ownerUserId ? Number(payload.ownerUserId) : null,
+        String(payload.source || "").trim(),
+        String(payload.description || "").trim(),
+        String(payload.lossReason || "").trim(),
+        String(currentUser?.name || "").trim()
+      ]
+    );
+
+    const opportunities = await fetchOpportunities({ clientId });
+    const opportunity = opportunities.find((item) => Number(item.id) === Number(result.rows[0].id));
+    res.status(201).json({ opportunity });
+  })
+);
+
+app.patch(
+  "/api/clients/:id/opportunities/:opportunityId",
+  asyncHandler(async (req, res) => {
+    const clientId = Number(req.params.id);
+    const opportunityId = Number(req.params.opportunityId);
+    const existingOpportunityResult = await query(
+      "SELECT id FROM opportunities WHERE id = $1 AND client_id = $2",
+      [opportunityId, clientId]
+    );
+
+    if (!existingOpportunityResult.rows[0]) {
+      res.status(404).json({ error: "Oportunidad no encontrada" });
+      return;
+    }
+
+    const payload = req.body || {};
+    const errors = await validateOpportunityPayload(payload, clientId);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0] });
+      return;
+    }
+
+    await query(
+      `
+      UPDATE opportunities
+      SET
+        branch_id = $1,
+        title = $2,
+        opportunity_type = $3,
+        service_line = $4,
+        status = $5,
+        amount = $6,
+        probability = $7,
+        expected_close_date = $8,
+        owner_user_id = $9,
+        source = $10,
+        description = $11,
+        loss_reason = $12,
+        updated_at = NOW()
+      WHERE id = $13 AND client_id = $14
+      `,
+      [
+        payload.branchId ? Number(payload.branchId) : null,
+        payload.title.trim(),
+        payload.opportunityType,
+        payload.serviceLine,
+        payload.status,
+        Number(payload.amount),
+        Number(payload.probability),
+        String(payload.expectedCloseDate || "").trim(),
+        payload.ownerUserId ? Number(payload.ownerUserId) : null,
+        String(payload.source || "").trim(),
+        String(payload.description || "").trim(),
+        String(payload.lossReason || "").trim(),
+        opportunityId,
+        clientId
+      ]
+    );
+
+    const opportunities = await fetchOpportunities({ clientId });
+    const opportunity = opportunities.find((item) => Number(item.id) === opportunityId);
+    res.json({ opportunity });
+  })
+);
+
+app.post(
+  "/api/opportunities/:opportunityId/follow-ups",
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.opportunityId);
+    const existingOpportunityResult = await query("SELECT id, client_id FROM opportunities WHERE id = $1", [opportunityId]);
+    const existingOpportunity = existingOpportunityResult.rows[0];
+
+    if (!existingOpportunity) {
+      res.status(404).json({ error: "Oportunidad no encontrada" });
+      return;
+    }
+
+    const payload = req.body || {};
+    const errors = await validateFollowUpPayload(payload);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0] });
+      return;
+    }
+
+    const currentUserResult = await query("SELECT name FROM users WHERE id = $1", [req.session.userId]);
+    const currentUser = currentUserResult.rows[0];
+    const result = await query(
+      `
+      INSERT INTO opportunity_follow_ups (
+        opportunity_id, type, title, due_date, status, assigned_user_id, notes, completed_at, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+      RETURNING id
+      `,
+      [
+        opportunityId,
+        payload.type,
+        payload.title.trim(),
+        payload.dueDate.trim(),
+        payload.status,
+        payload.assignedUserId ? Number(payload.assignedUserId) : null,
+        String(payload.notes || "").trim(),
+        payload.status === FOLLOW_UP_STATUS.DONE ? new Date().toISOString() : null,
+        String(currentUser?.name || "").trim()
+      ]
+    );
+
+    const opportunities = await fetchOpportunities({ clientId: existingOpportunity.client_id });
+    const opportunity = opportunities.find((item) => Number(item.id) === opportunityId);
+    const followUp = opportunity?.followUps?.find((item) => Number(item.id) === Number(result.rows[0].id)) || null;
+    res.status(201).json({ followUp, opportunity });
+  })
+);
+
+app.patch(
+  "/api/opportunities/:opportunityId/follow-ups/:followUpId",
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.opportunityId);
+    const followUpId = Number(req.params.followUpId);
+    const existingResult = await query(
+      `
+      SELECT opportunity_follow_ups.id, opportunities.client_id
+      FROM opportunity_follow_ups
+      INNER JOIN opportunities ON opportunities.id = opportunity_follow_ups.opportunity_id
+      WHERE opportunity_follow_ups.id = $1 AND opportunity_follow_ups.opportunity_id = $2
+      `,
+      [followUpId, opportunityId]
+    );
+    const existingFollowUp = existingResult.rows[0];
+
+    if (!existingFollowUp) {
+      res.status(404).json({ error: "Seguimiento no encontrado" });
+      return;
+    }
+
+    const payload = req.body || {};
+    const errors = await validateFollowUpPayload(payload);
+    if (errors.length) {
+      res.status(400).json({ error: errors[0] });
+      return;
+    }
+
+    await query(
+      `
+      UPDATE opportunity_follow_ups
+      SET
+        type = $1,
+        title = $2,
+        due_date = $3,
+        status = $4,
+        assigned_user_id = $5,
+        notes = $6,
+        completed_at = CASE
+          WHEN $4 = '${FOLLOW_UP_STATUS.DONE}' THEN COALESCE(completed_at, NOW())
+          ELSE NULL
+        END,
+        updated_at = NOW()
+      WHERE id = $7 AND opportunity_id = $8
+      `,
+      [
+        payload.type,
+        payload.title.trim(),
+        payload.dueDate.trim(),
+        payload.status,
+        payload.assignedUserId ? Number(payload.assignedUserId) : null,
+        String(payload.notes || "").trim(),
+        followUpId,
+        opportunityId
+      ]
+    );
+
+    const opportunities = await fetchOpportunities({ clientId: existingFollowUp.client_id });
+    const opportunity = opportunities.find((item) => Number(item.id) === opportunityId);
+    const followUp = opportunity?.followUps?.find((item) => Number(item.id) === followUpId) || null;
+    res.json({ followUp, opportunity });
+  })
+);
+
+app.post(
   "/api/clients/:id/meetings",
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
@@ -2377,6 +2989,14 @@ app.post(
         return;
       }
     }
+    const opportunityId = payload.opportunityId ? Number(payload.opportunityId) : null;
+    if (opportunityId) {
+      const opportunityResult = await query("SELECT id FROM opportunities WHERE id = $1 AND client_id = $2", [opportunityId, clientId]);
+      if (!opportunityResult.rows[0]) {
+        res.status(400).json({ error: "La oportunidad seleccionada no pertenece a esta compañía" });
+        return;
+      }
+    }
 
     const currentUserResult = await query("SELECT name FROM users WHERE id = $1", [req.session.userId]);
     const currentUser = currentUserResult.rows[0];
@@ -2389,12 +3009,12 @@ app.post(
       const result = await client.query(
         `
         INSERT INTO meetings (
-          client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
+          client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
           contact_name, contact_role, modality, next_meeting_date, minutes, findings,
           active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
           created_by, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), NOW())
-        RETURNING id, client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW())
+        RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
                   active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
                   created_by, status, created_at, updated_at
@@ -2402,6 +3022,7 @@ app.post(
         [
           clientId,
           branchId,
+          opportunityId,
           payload.kind,
           payload.subject.trim(),
           payload.objective.trim(),
@@ -2460,6 +3081,14 @@ app.patch(
         return;
       }
     }
+    const opportunityId = payload.opportunityId ? Number(payload.opportunityId) : null;
+    if (opportunityId) {
+      const opportunityResult = await query("SELECT id FROM opportunities WHERE id = $1 AND client_id = $2", [opportunityId, clientId]);
+      if (!opportunityResult.rows[0]) {
+        res.status(400).json({ error: "La oportunidad seleccionada no pertenece a esta compañía" });
+        return;
+      }
+    }
 
     const currentUserResult = await query("SELECT name FROM users WHERE id = $1", [req.session.userId]);
     const currentUser = currentUserResult.rows[0];
@@ -2474,34 +3103,36 @@ app.patch(
         UPDATE meetings
         SET
           branch_id = $1,
-          kind = $2,
-          subject = $3,
-          objective = $4,
-          scheduled_for = $5,
-          participants = $6,
-          participant_user_ids = $7,
-          contact_name = $8,
-          contact_role = $9,
-          modality = $10,
-          next_meeting_date = $11,
-          minutes = $12,
-          findings = $13,
-          active_negotiations_status = $14,
-          opportunities = $15,
-          substitute_recovery = $16,
-          global_contacts = $17,
-          service_status = $18,
-          created_by = $19,
-          status = $20,
+          opportunity_id = $2,
+          kind = $3,
+          subject = $4,
+          objective = $5,
+          scheduled_for = $6,
+          participants = $7,
+          participant_user_ids = $8,
+          contact_name = $9,
+          contact_role = $10,
+          modality = $11,
+          next_meeting_date = $12,
+          minutes = $13,
+          findings = $14,
+          active_negotiations_status = $15,
+          opportunities = $16,
+          substitute_recovery = $17,
+          global_contacts = $18,
+          service_status = $19,
+          created_by = $20,
+          status = $21,
           updated_at = NOW()
-        WHERE id = $21 AND client_id = $22
-        RETURNING id, client_id, branch_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+        WHERE id = $22 AND client_id = $23
+        RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
                   active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
                   created_by, status, created_at, updated_at
         `,
         [
           branchId,
+          opportunityId,
           payload.kind,
           payload.subject.trim(),
           payload.objective.trim(),

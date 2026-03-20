@@ -3,7 +3,17 @@ const fs = require("fs");
 const crypto = require("crypto");
 const Database = require("better-sqlite3");
 const { Pool } = require("pg");
-const { MEETING_TYPES, MEETING_REASONS, USER_ROLES, USER_ROLE_OPTIONS } = require("./constants");
+const {
+  MEETING_TYPES,
+  MEETING_REASONS,
+  USER_ROLES,
+  USER_ROLE_OPTIONS,
+  OPPORTUNITY_STATUS_OPTIONS,
+  FOLLOW_UP_STATUS_OPTIONS,
+  OPPORTUNITY_SERVICE_LINES,
+  FOLLOW_UP_TYPES,
+  OPPORTUNITY_TYPES
+} = require("./constants");
 
 const DEFAULT_DB_USER = encodeURIComponent(process.env.PGUSER || process.env.USER || "postgres");
 const DATABASE_URL = process.env.DATABASE_URL || `postgres://${DEFAULT_DB_USER}@localhost:5432/top_clients`;
@@ -433,6 +443,7 @@ async function initDb() {
       id SERIAL PRIMARY KEY,
       client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
+      billing_2025 NUMERIC(14, 2) NOT NULL DEFAULT 0,
       sector TEXT NOT NULL,
       manager TEXT NOT NULL,
       risk TEXT NOT NULL CHECK (risk IN ('Bajo', 'Medio', 'Alto')),
@@ -452,6 +463,7 @@ async function initDb() {
       id SERIAL PRIMARY KEY,
       client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       branch_id INTEGER REFERENCES client_branches(id) ON DELETE CASCADE,
+      opportunity_id INTEGER,
       kind TEXT NOT NULL DEFAULT 'Comercial',
       subject TEXT NOT NULL,
       objective TEXT NOT NULL DEFAULT '',
@@ -472,6 +484,41 @@ async function initDb() {
       service_status TEXT NOT NULL DEFAULT '',
       created_by TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'Agendada' CHECK (status IN ('Agendada', 'Realizada')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS opportunities (
+      id SERIAL PRIMARY KEY,
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES client_branches(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      opportunity_type TEXT NOT NULL DEFAULT 'Negociación',
+      service_line TEXT NOT NULL DEFAULT 'Otro',
+      status TEXT NOT NULL DEFAULT 'Abierta',
+      amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      probability INTEGER NOT NULL DEFAULT 0,
+      expected_close_date TEXT NOT NULL DEFAULT '',
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      source TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      loss_reason TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS opportunity_follow_ups (
+      id SERIAL PRIMARY KEY,
+      opportunity_id INTEGER NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'Recordatorio',
+      title TEXT NOT NULL,
+      due_date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Pendiente',
+      assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      completed_at TIMESTAMPTZ,
+      created_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -503,6 +550,10 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_branches_client ON client_branches(client_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_client ON meetings(client_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_schedule ON meetings(scheduled_for, status);
+    CREATE INDEX IF NOT EXISTS idx_opportunities_client ON opportunities(client_id);
+    CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status, expected_close_date);
+    CREATE INDEX IF NOT EXISTS idx_opportunities_owner ON opportunities(owner_user_id);
+    CREATE INDEX IF NOT EXISTS idx_follow_ups_opportunity ON opportunity_follow_ups(opportunity_id, due_date);
     CREATE INDEX IF NOT EXISTS idx_sector_options_name ON sector_options(name);
     CREATE INDEX IF NOT EXISTS idx_meeting_type_options_sort ON meeting_type_options(sort_order, id);
     CREATE INDEX IF NOT EXISTS idx_meeting_reason_options_sort ON meeting_reason_options(sort_order, id);
@@ -530,6 +581,8 @@ async function initDb() {
 
   await query(`
     ALTER TABLE client_branches
+      ADD COLUMN IF NOT EXISTS billing_2025 NUMERIC(14, 2) NOT NULL DEFAULT 0;
+    ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS executive_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -537,6 +590,8 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES client_branches(id) ON DELETE CASCADE;
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS opportunity_id INTEGER;
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS participant_user_ids INTEGER[] NOT NULL DEFAULT '{}'::INTEGER[];
     ALTER TABLE meetings
@@ -560,6 +615,47 @@ async function initDb() {
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS service_status TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_client_branches_executive ON client_branches(executive_user_id);
+    CREATE INDEX IF NOT EXISTS idx_meetings_opportunity ON meetings(opportunity_id);
+  `);
+
+  await query(`
+    ALTER TABLE meetings
+      DROP CONSTRAINT IF EXISTS meetings_opportunity_id_fkey;
+    ALTER TABLE meetings
+      ADD CONSTRAINT meetings_opportunity_id_fkey
+      FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL;
+
+    ALTER TABLE opportunities
+      ADD COLUMN IF NOT EXISTS opportunity_type TEXT NOT NULL DEFAULT 'Negociación';
+    ALTER TABLE opportunities
+      DROP CONSTRAINT IF EXISTS opportunities_status_check;
+    ALTER TABLE opportunities
+      ADD CONSTRAINT opportunities_status_check CHECK (status = ANY(ARRAY['${OPPORTUNITY_STATUS_OPTIONS.join("','")}']::text[]));
+    ALTER TABLE opportunities
+      DROP CONSTRAINT IF EXISTS opportunities_opportunity_type_check;
+    ALTER TABLE opportunities
+      ADD CONSTRAINT opportunities_opportunity_type_check CHECK (opportunity_type = ANY(ARRAY['${OPPORTUNITY_TYPES.join("','")}']::text[]));
+    ALTER TABLE opportunities
+      DROP CONSTRAINT IF EXISTS opportunities_service_line_check;
+    ALTER TABLE opportunities
+      ADD CONSTRAINT opportunities_service_line_check CHECK (service_line = ANY(ARRAY['${OPPORTUNITY_SERVICE_LINES.join("','")}']::text[]));
+    ALTER TABLE opportunities
+      DROP CONSTRAINT IF EXISTS opportunities_probability_check;
+    ALTER TABLE opportunities
+      ADD CONSTRAINT opportunities_probability_check CHECK (probability >= 0 AND probability <= 100);
+    ALTER TABLE opportunities
+      DROP CONSTRAINT IF EXISTS opportunities_amount_check;
+    ALTER TABLE opportunities
+      ADD CONSTRAINT opportunities_amount_check CHECK (amount >= 0);
+
+    ALTER TABLE opportunity_follow_ups
+      DROP CONSTRAINT IF EXISTS opportunity_follow_ups_status_check;
+    ALTER TABLE opportunity_follow_ups
+      ADD CONSTRAINT opportunity_follow_ups_status_check CHECK (status = ANY(ARRAY['${FOLLOW_UP_STATUS_OPTIONS.join("','")}']::text[]));
+    ALTER TABLE opportunity_follow_ups
+      DROP CONSTRAINT IF EXISTS opportunity_follow_ups_type_check;
+    ALTER TABLE opportunity_follow_ups
+      ADD CONSTRAINT opportunity_follow_ups_type_check CHECK (type = ANY(ARRAY['${FOLLOW_UP_TYPES.join("','")}']::text[]));
   `);
 
   await query(`
@@ -603,6 +699,41 @@ async function initDb() {
     UPDATE meetings
     SET modality = 'Presencial'
     WHERE COALESCE(modality, '') NOT IN ('Virtual', 'Presencial');
+  `);
+
+  await query(`
+    UPDATE opportunities
+    SET opportunity_type = 'Negociación'
+    WHERE COALESCE(opportunity_type, '') NOT IN ('${OPPORTUNITY_TYPES.join("','")}');
+  `);
+
+  await query(`
+    UPDATE opportunities
+    SET service_line = 'Otro'
+    WHERE COALESCE(service_line, '') NOT IN ('${OPPORTUNITY_SERVICE_LINES.join("','")}');
+  `);
+
+  await query(`
+    UPDATE opportunities
+    SET status = 'Abierta'
+    WHERE COALESCE(status, '') NOT IN ('${OPPORTUNITY_STATUS_OPTIONS.join("','")}');
+  `);
+
+  await query(`
+    UPDATE opportunities
+    SET probability = LEAST(GREATEST(COALESCE(probability, 0), 0), 100);
+  `);
+
+  await query(`
+    UPDATE opportunity_follow_ups
+    SET status = 'Pendiente'
+    WHERE COALESCE(status, '') NOT IN ('${FOLLOW_UP_STATUS_OPTIONS.join("','")}');
+  `);
+
+  await query(`
+    UPDATE opportunity_follow_ups
+    SET type = 'Recordatorio'
+    WHERE COALESCE(type, '') NOT IN ('${FOLLOW_UP_TYPES.join("','")}');
   `);
 
   await migrateLegacySqliteIfNeeded();

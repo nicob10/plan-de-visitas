@@ -314,7 +314,8 @@ let assignmentOptions = {
 
 function canAccessSettings() {
   const email = String(currentUser?.email || "").trim().toLowerCase();
-  return !!currentUser?.canManageSettings || email === "nicolas@maxiseguridad.com";
+  const name = String(currentUser?.name || "").trim();
+  return !!currentUser?.canManageSettings || (email === "nicolas@maxiseguridad.com" && name === "Nicolas Beguelman");
 }
 
 function notifyError(message) {

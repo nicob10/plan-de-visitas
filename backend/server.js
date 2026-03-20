@@ -164,7 +164,8 @@ function requireAuth(req, res, next) {
 
 function isSettingsAdminUser(user) {
   return (
-    String(user?.email || "").trim().toLowerCase() === "nicolas@maxiseguridad.com"
+    String(user?.email || "").trim().toLowerCase() === "nicolas@maxiseguridad.com" &&
+    String(user?.name || "").trim() === "Nicolas Beguelman"
   );
 }
 

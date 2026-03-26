@@ -1777,6 +1777,7 @@ function renderMeetingCard(meeting) {
   const serviceStatusBlock = fragment.querySelector(".meeting-service-status-block");
   const serviceStatusNode = fragment.querySelector(".meeting-service-status");
   const editButton = fragment.querySelector(".edit-meeting-btn");
+  const deleteButton = fragment.querySelector(".delete-meeting-btn");
 
   const typeMeta = getMeetingTypeMeta(meeting.kind);
 
@@ -1821,6 +1822,25 @@ function renderMeetingCard(meeting) {
     openMeetingScreen(meeting);
   });
 
+  deleteButton.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      `Se va a eliminar la reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)}.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteMeeting(meeting.id);
+      await loadClients({ clearSelectionWhenMissing: false });
+      await loadClientDetail(selectedClient.id);
+      await loadCalendar();
+      renderTable();
+      showScreen("detail");
+      syncUrlWithState("detail");
+    } catch (error) {
+      notifyError(error.message);
+    }
+  });
+
   return fragment;
 }
 
@@ -1852,8 +1872,29 @@ function renderCompactMeetingListItem(meeting) {
       <span class="meeting-status-badge ${
         meeting.status === "Realizada" ? "done" : meeting.status === "Confirmada" ? "confirmed" : "scheduled"
       }">${meeting.status}</span>
+      <button class="ghost-btn delete-meeting-btn" type="button" aria-label="Eliminar reunión" title="Eliminar reunión">🗑</button>
     </div>
   `;
+
+  article.querySelector(".delete-meeting-btn").addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const confirmed = window.confirm(
+      `Se va a eliminar la reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)}.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteMeeting(meeting.id);
+      await loadClients({ clearSelectionWhenMissing: false });
+      await loadClientDetail(selectedClient.id);
+      await loadCalendar();
+      renderTable();
+      showScreen("detail");
+      syncUrlWithState("detail");
+    } catch (error) {
+      notifyError(error.message);
+    }
+  });
 
   article.addEventListener("click", () => {
     openMeetingDetailScreen(meeting);
@@ -2220,6 +2261,21 @@ async function deleteUser(userId) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || "No se pudo eliminar el usuario");
+  }
+  return data;
+}
+
+async function deleteMeeting(meetingId) {
+  if (!selectedClient?.id) {
+    throw new Error("No hay un cliente seleccionado");
+  }
+
+  const response = await fetch(`/api/clients/${selectedClient.id}/meetings/${meetingId}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar la reunión");
   }
   return data;
 }

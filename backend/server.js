@@ -3167,6 +3167,23 @@ app.patch(
   })
 );
 
+app.delete(
+  "/api/clients/:id/meetings/:meetingId",
+  asyncHandler(async (req, res) => {
+    const clientId = Number(req.params.id);
+    const meetingId = Number(req.params.meetingId);
+    const existingResult = await query("SELECT id FROM meetings WHERE id = $1 AND client_id = $2", [meetingId, clientId]);
+
+    if (!existingResult.rows[0]) {
+      res.status(404).json({ error: "Reunión no encontrada" });
+      return;
+    }
+
+    await query("DELETE FROM meetings WHERE id = $1 AND client_id = $2", [meetingId, clientId]);
+    res.json({ ok: true });
+  })
+);
+
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "Ruta API no encontrada" });
 });

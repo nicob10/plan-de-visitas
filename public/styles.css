@@ -1633,6 +1633,13 @@ tr.active {
   justify-content: flex-end;
 }
 
+.delete-meeting-btn {
+  min-width: 42px;
+  padding-inline: 0.6rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .meeting-status-badge {
   display: inline-flex;
   align-items: center;

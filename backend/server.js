@@ -188,6 +188,126 @@ async function requireSettingsAdmin(req, res, next) {
   next();
 }
 
+function isExecutiveScopedUser(user) {
+  return String(user?.role || "").trim() === EXECUTIVE_ROLE;
+}
+
+async function getSessionUser(req) {
+  if (!req.session.userId) return null;
+  return getUserById(req.session.userId);
+}
+
+async function requireClientAccess(req, res, next) {
+  const user = await getSessionUser(req);
+
+  if (!user) {
+    req.session.destroy(() => {});
+    res.status(401).json({ error: "Sesión inválida" });
+    return;
+  }
+
+  const clientId = Number(req.params.id);
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    res.status(400).json({ error: "Cliente inválido" });
+    return;
+  }
+
+  const clientResult = await query("SELECT id, executive_user_id, is_hidden FROM clients WHERE id = $1", [clientId]);
+  const client = clientResult.rows[0];
+
+  if (!client || client.is_hidden) {
+    res.status(404).json({ error: "Cliente no encontrado" });
+    return;
+  }
+
+  if (isExecutiveScopedUser(user) && Number(client.executive_user_id) !== Number(user.id)) {
+    res.status(403).json({ error: "No tenés permisos para acceder a esta compañía" });
+    return;
+  }
+
+  req.authUser = sanitizeUser(user);
+  req.accessClient = {
+    id: client.id,
+    executiveUserId: client.executive_user_id
+  };
+  next();
+}
+
+async function requireOpportunityAccess(req, res, next) {
+  const user = await getSessionUser(req);
+
+  if (!user) {
+    req.session.destroy(() => {});
+    res.status(401).json({ error: "Sesión inválida" });
+    return;
+  }
+
+  const opportunityId = Number(req.params.opportunityId);
+  if (!Number.isInteger(opportunityId) || opportunityId <= 0) {
+    res.status(400).json({ error: "Oportunidad inválida" });
+    return;
+  }
+
+  const result = await query(
+    `
+    SELECT opportunities.id, opportunities.client_id, clients.executive_user_id, clients.is_hidden
+    FROM opportunities
+    INNER JOIN clients ON clients.id = opportunities.client_id
+    WHERE opportunities.id = $1
+    `,
+    [opportunityId]
+  );
+  const opportunity = result.rows[0];
+
+  if (!opportunity || opportunity.is_hidden) {
+    res.status(404).json({ error: "Oportunidad no encontrada" });
+    return;
+  }
+
+  if (isExecutiveScopedUser(user) && Number(opportunity.executive_user_id) !== Number(user.id)) {
+    res.status(403).json({ error: "No tenés permisos para acceder a esta oportunidad" });
+    return;
+  }
+
+  req.authUser = sanitizeUser(user);
+  req.accessOpportunity = {
+    id: opportunity.id,
+    clientId: opportunity.client_id,
+    executiveUserId: opportunity.executive_user_id
+  };
+  next();
+}
+
+async function logAuditEvent({
+  req = null,
+  user = null,
+  action,
+  entityType = "",
+  entityId = null,
+  entityName = "",
+  details = {}
+}) {
+  const auditUser = user || (req ? await getSessionUser(req) : null);
+
+  await query(
+    `
+    INSERT INTO audit_logs (
+      user_id, user_name, user_email, action, entity_type, entity_id, entity_name, details, created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+    `,
+    [
+      auditUser?.id || null,
+      String(auditUser?.name || "").trim(),
+      String(auditUser?.email || "").trim().toLowerCase(),
+      String(action || "").trim(),
+      String(entityType || "").trim(),
+      entityId === null || entityId === undefined ? null : Number(entityId),
+      String(entityName || "").trim(),
+      JSON.stringify(details || {})
+    ]
+  );
+}
+
 function toClientObject(row) {
   return {
     id: row.id,
@@ -764,7 +884,8 @@ async function fetchOpportunities({
   clientId = null,
   search = "",
   ownerUserId = null,
-  status = null
+  status = null,
+  executiveScopedUserId = null
 } = {}) {
   const where = ["clients.is_hidden = FALSE"];
   const params = [];
@@ -789,6 +910,11 @@ async function fetchOpportunities({
   if (status !== null) {
     params.push(status);
     where.push(`opportunities.status = $${params.length}`);
+  }
+
+  if (executiveScopedUserId !== null) {
+    params.push(Number(executiveScopedUserId));
+    where.push(`clients.executive_user_id = $${params.length}`);
   }
 
   const { rows } = await query(
@@ -855,10 +981,11 @@ function buildVisitsWhereClause(filters = {}) {
     supervisorUserId = "todos",
     participantUserId = "todos",
     dateFrom = "",
-    dateTo = ""
+    dateTo = "",
+    scopedExecutiveUserId = null
   } = filters;
 
-  const where = [];
+  const where = ["COALESCE(meetings.is_deleted, FALSE) = FALSE"];
   const params = [];
 
   if (search) {
@@ -885,6 +1012,11 @@ function buildVisitsWhereClause(filters = {}) {
 
   if (executiveUserId !== "todos") {
     params.push(Number(executiveUserId));
+    where.push(`clients.executive_user_id = $${params.length}`);
+  }
+
+  if (scopedExecutiveUserId !== null) {
+    params.push(Number(scopedExecutiveUserId));
     where.push(`clients.executive_user_id = $${params.length}`);
   }
 
@@ -1021,6 +1153,7 @@ async function attachMeetingSummary(client) {
     FROM meetings
     LEFT JOIN opportunities AS opportunities_table ON opportunities_table.id = meetings.opportunity_id
     WHERE meetings.client_id = $1
+      AND COALESCE(meetings.is_deleted, FALSE) = FALSE
     ORDER BY meetings.scheduled_for DESC, meetings.id DESC
     `,
     [client.id]
@@ -1360,7 +1493,7 @@ async function validateMeetingPayload(payload) {
 async function upsertMeetingFollowUp(client, meeting, createdBy) {
   const nextMeetingDate = String(meeting.nextMeetingDate || "").trim();
   const followUpResult = await client.query(
-    "SELECT id FROM meetings WHERE follow_up_from_meeting_id = $1 ORDER BY id ASC LIMIT 1",
+    "SELECT id FROM meetings WHERE follow_up_from_meeting_id = $1 AND COALESCE(is_deleted, FALSE) = FALSE ORDER BY id ASC LIMIT 1",
     [meeting.id]
   );
   const existingFollowUp = followUpResult.rows[0] || null;
@@ -1501,6 +1634,13 @@ app.post(
     }
 
     req.session.userId = user.id;
+    await logAuditEvent({
+      user,
+      action: "auth.login",
+      entityType: "session",
+      entityId: user.id,
+      entityName: user.email
+    });
     res.json({
       user: {
         ...sanitizeUser(user),
@@ -1511,9 +1651,22 @@ app.post(
 );
 
 app.post("/api/auth/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ ok: true });
-  });
+  getSessionUser(req)
+    .then((user) =>
+      logAuditEvent({
+        user,
+        action: "auth.logout",
+        entityType: "session",
+        entityId: user?.id || null,
+        entityName: user?.email || ""
+      })
+    )
+    .catch(() => {})
+    .finally(() => {
+      req.session.destroy(() => {
+        res.json({ ok: true });
+      });
+    });
 });
 
 app.get("/api/meeting-types", (_req, res) => {
@@ -1791,6 +1944,13 @@ app.post(
       [value, label, color]
     );
 
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_type.create",
+      entityType: "meeting_type",
+      entityName: label,
+      details: { value, color }
+    });
     await refreshMeetingTypesCache();
     res.status(201).json({ meetingTypes: getMeetingTypes() });
   })
@@ -1829,6 +1989,14 @@ app.patch(
       return;
     }
 
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_type.update",
+      entityType: "meeting_type",
+      entityId: id,
+      entityName: label,
+      details: { value, color }
+    });
     await refreshMeetingTypesCache();
     res.json({ meetingTypes: getMeetingTypes() });
   })
@@ -1856,6 +2024,13 @@ app.delete(
     }
 
     await query("DELETE FROM meeting_type_options WHERE id = $1", [id]);
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_type.delete",
+      entityType: "meeting_type",
+      entityId: id,
+      entityName: existing.label
+    });
     await refreshMeetingTypesCache();
     res.json({ meetingTypes: getMeetingTypes() });
   })
@@ -1878,6 +2053,12 @@ app.post(
       [name]
     );
 
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_reason.create",
+      entityType: "meeting_reason",
+      entityName: name
+    });
     await refreshMeetingReasonsCache();
     res.status(201).json({ meetingReasons: getMeetingReasons() });
   })
@@ -1912,6 +2093,13 @@ app.patch(
       return;
     }
 
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_reason.update",
+      entityType: "meeting_reason",
+      entityId: id,
+      entityName: name
+    });
     await refreshMeetingReasonsCache();
     res.json({ meetingReasons: getMeetingReasons() });
   })
@@ -1939,6 +2127,13 @@ app.delete(
     }
 
     await query("DELETE FROM meeting_reason_options WHERE id = $1", [id]);
+    await logAuditEvent({
+      req,
+      action: "settings.meeting_reason.delete",
+      entityType: "meeting_reason",
+      entityId: id,
+      entityName: existing.name
+    });
     await refreshMeetingReasonsCache();
     res.json({ meetingReasons: getMeetingReasons() });
   })
@@ -1969,6 +2164,13 @@ app.post(
           name: result.rows[0].name,
           createdAt: result.rows[0].created_at
         }
+      });
+      await logAuditEvent({
+        req,
+        action: "settings.sector.create",
+        entityType: "sector",
+        entityId: result.rows[0].id,
+        entityName: result.rows[0].name
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -2009,7 +2211,127 @@ app.delete(
     }
 
     await query("DELETE FROM sector_options WHERE id = $1", [sectorId]);
+    await logAuditEvent({
+      req,
+      action: "settings.sector.delete",
+      entityType: "sector",
+      entityId: sectorId,
+      entityName: sector.name
+    });
     res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/settings/trash/meetings",
+  asyncHandler(async (_req, res) => {
+    const { rows } = await query(
+      `
+      SELECT
+        meetings.id,
+        meetings.client_id,
+        meetings.branch_id,
+        meetings.kind,
+        meetings.subject,
+        meetings.scheduled_for,
+        meetings.status,
+        meetings.deleted_at,
+        meetings.deleted_by,
+        clients.name AS client_name,
+        client_branches.name AS branch_name
+      FROM meetings
+      INNER JOIN clients ON clients.id = meetings.client_id
+      LEFT JOIN client_branches ON client_branches.id = meetings.branch_id
+      WHERE COALESCE(meetings.is_deleted, FALSE) = TRUE
+      ORDER BY meetings.deleted_at DESC NULLS LAST, meetings.id DESC
+      `
+    );
+
+    res.json({
+      meetings: rows.map((row) => ({
+        id: row.id,
+        clientId: row.client_id,
+        branchId: row.branch_id,
+        clientName: row.client_name,
+        branchName: row.branch_name || "",
+        kind: row.kind,
+        kindLabel: getMeetingLabel(row.kind),
+        subject: row.subject,
+        scheduledFor: row.scheduled_for,
+        status: row.status,
+        deletedAt: row.deleted_at,
+        deletedBy: row.deleted_by || ""
+      }))
+    });
+  })
+);
+
+app.post(
+  "/api/settings/trash/meetings/:id/restore",
+  asyncHandler(async (req, res) => {
+    const meetingId = Number(req.params.id);
+    if (!Number.isInteger(meetingId) || meetingId <= 0) {
+      res.status(400).json({ error: "Reunión inválida" });
+      return;
+    }
+
+    const result = await query(
+      `
+      UPDATE meetings
+      SET is_deleted = FALSE, deleted_at = NULL, deleted_by = '', updated_at = NOW()
+      WHERE id = $1 AND COALESCE(is_deleted, FALSE) = TRUE
+      RETURNING id, subject
+      `,
+      [meetingId]
+    );
+
+    const meeting = result.rows[0];
+    if (!meeting) {
+      res.status(404).json({ error: "Reunión no encontrada en la papelera" });
+      return;
+    }
+
+    await logAuditEvent({
+      req,
+      action: "meeting.restore",
+      entityType: "meeting",
+      entityId: meeting.id,
+      entityName: meeting.subject,
+      details: { source: "trash" }
+    });
+
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/settings/audit-logs",
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 300);
+    const { rows } = await query(
+      `
+      SELECT id, user_id, user_name, user_email, action, entity_type, entity_id, entity_name, details, created_at
+      FROM audit_logs
+      ORDER BY created_at DESC, id DESC
+      LIMIT $1
+      `,
+      [limit]
+    );
+
+    res.json({
+      logs: rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        userName: row.user_name,
+        userEmail: row.user_email,
+        action: row.action,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        entityName: row.entity_name,
+        details: row.details || {},
+        createdAt: row.created_at
+      }))
+    });
   })
 );
 
@@ -2046,8 +2368,17 @@ app.post(
     }
 
     try {
+      const user = await createUserRecord(values);
+      await logAuditEvent({
+        req,
+        action: "user.create",
+        entityType: "user",
+        entityId: user.id,
+        entityName: user.email,
+        details: { role: user.role }
+      });
       res.status(201).json({
-        user: await createUserRecord(values)
+        user
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -2117,12 +2448,19 @@ app.patch(
       throw error;
     }
 
-    res.json({
-      user: {
-        ...sanitizeUser(result.rows[0]),
-        createdAt: result.rows[0].created_at
-      }
+    const user = {
+      ...sanitizeUser(result.rows[0]),
+      createdAt: result.rows[0].created_at
+    };
+    await logAuditEvent({
+      req,
+      action: "user.update",
+      entityType: "user",
+      entityId: user.id,
+      entityName: user.email,
+      details: { role: user.role }
     });
+    res.json({ user });
   })
 );
 
@@ -2156,6 +2494,14 @@ app.delete(
     }
 
     await query("DELETE FROM users WHERE id = $1", [userId]);
+    await logAuditEvent({
+      req,
+      action: "user.delete",
+      entityType: "user",
+      entityId: userId,
+      entityName: existingUser.email,
+      details: { role: existingUser.role }
+    });
     res.json({ ok: true });
   })
 );
@@ -2198,6 +2544,13 @@ app.get(
 app.get(
   "/api/clients",
   asyncHandler(async (req, res) => {
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
     const {
       search = "",
       risk = "todos",
@@ -2237,6 +2590,10 @@ app.get(
       params.push(works === "si");
       where.push(`clients.service_works = $${params.length}`);
     }
+    if (isExecutiveScopedUser(currentUser)) {
+      params.push(Number(currentUser.id));
+      where.push(`clients.executive_user_id = $${params.length}`);
+    }
 
     const { rows } = await query(
       buildClientSelectQuery(mergeWhereClause("clients.is_hidden = FALSE", where.length ? `WHERE ${where.join(" AND ")}` : "")),
@@ -2245,11 +2602,24 @@ app.get(
 
     const clients = await Promise.all(rows.map((row) => buildClientResponse(row, { includeCrm: false })));
 
+    const totalsWhere = ["is_hidden = FALSE"];
+    const totalsParams = [];
+    if (isExecutiveScopedUser(currentUser)) {
+      totalsParams.push(Number(currentUser.id));
+      totalsWhere.push(`executive_user_id = $${totalsParams.length}`);
+    }
     const totalsResult = await query(
-      "SELECT COUNT(*)::int AS total_clients, COALESCE(SUM(billing_2025), 0) AS total_billing FROM clients WHERE is_hidden = FALSE"
+      `SELECT COUNT(*)::int AS total_clients, COALESCE(SUM(billing_2025), 0) AS total_billing FROM clients WHERE ${totalsWhere.join(" AND ")}`,
+      totalsParams
     );
     const totals = totalsResult.rows[0];
 
+    const meetingSummaryParams = [];
+    const meetingSummaryWhere = [];
+    if (isExecutiveScopedUser(currentUser)) {
+      meetingSummaryParams.push(Number(currentUser.id));
+      meetingSummaryWhere.push(`clients.executive_user_id = $${meetingSummaryParams.length}`);
+    }
     const meetingSummaryResult = await query(`
       SELECT
         COUNT(*)::int AS total_meetings,
@@ -2258,9 +2628,14 @@ app.get(
         COALESCE(SUM(CASE WHEN status = 'Realizada' THEN 1 ELSE 0 END), 0)::int AS completed_meetings
         ,COUNT(DISTINCT CASE WHEN status = 'Realizada' THEN client_id END)::int AS visited_clients
       FROM meetings
-    `);
+      INNER JOIN clients ON clients.id = meetings.client_id
+      WHERE COALESCE(meetings.is_deleted, FALSE) = FALSE
+      ${meetingSummaryWhere.length ? `AND ${meetingSummaryWhere.join(" AND ")}` : ""}
+    `, meetingSummaryParams);
     const meetingSummary = meetingSummaryResult.rows[0];
-    const crmSummary = buildCrmSummary(await fetchOpportunities());
+    const crmSummary = buildCrmSummary(
+      await fetchOpportunities({ executiveScopedUserId: isExecutiveScopedUser(currentUser) ? Number(currentUser.id) : null })
+    );
 
     res.json({
       clients,
@@ -2288,9 +2663,16 @@ app.get(
 app.get(
   "/api/calendar",
   asyncHandler(async (req, res) => {
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
     const month = String(req.query.month || "").trim();
     const participantUserId = String(req.query.participantUserId || "todos").trim();
-    const where = ["meetings.status = ANY($1::text[])"];
+    const where = ["meetings.status = ANY($1::text[])", "COALESCE(meetings.is_deleted, FALSE) = FALSE"];
     const params = [[MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED, MEETING_STATUS.COMPLETED]];
 
     if (/^\d{4}-\d{2}$/.test(month)) {
@@ -2301,6 +2683,10 @@ app.get(
     if (participantUserId !== "todos") {
       params.push(Number(participantUserId));
       where.push(`meetings.participant_user_ids @> ARRAY[$${params.length}]::INTEGER[]`);
+    }
+    if (isExecutiveScopedUser(currentUser)) {
+      params.push(Number(currentUser.id));
+      where.push(`clients.executive_user_id = $${params.length}`);
     }
 
     const { rows } = await query(
@@ -2355,14 +2741,36 @@ app.get(
 app.get(
   "/api/visits",
   asyncHandler(async (req, res) => {
-    res.json({ visits: await fetchVisits(req.query) });
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
+    res.json({
+      visits: await fetchVisits({
+        ...req.query,
+        scopedExecutiveUserId: isExecutiveScopedUser(currentUser) ? Number(currentUser.id) : null
+      })
+    });
   })
 );
 
 app.get(
   "/api/visits/export",
   asyncHandler(async (req, res) => {
-    const visits = await fetchVisits(req.query);
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
+    const visits = await fetchVisits({
+      ...req.query,
+      scopedExecutiveUserId: isExecutiveScopedUser(currentUser) ? Number(currentUser.id) : null
+    });
     const rows = visits.map((visit) => ({
       Fecha: visit.scheduledFor,
       Cliente: visit.clientName,
@@ -2390,6 +2798,39 @@ app.get(
 
 app.patch(
   "/api/meetings/:meetingId/status",
+  asyncHandler(async (req, res, next) => {
+    const user = await getSessionUser(req);
+
+    if (!user) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
+    if (isExecutiveScopedUser(user)) {
+      const meetingId = Number(req.params.meetingId);
+      const accessResult = await query(
+        `
+        SELECT meetings.id
+        FROM meetings
+        INNER JOIN clients ON clients.id = meetings.client_id
+        WHERE meetings.id = $1
+          AND clients.executive_user_id = $2
+          AND clients.is_hidden = FALSE
+          AND COALESCE(meetings.is_deleted, FALSE) = FALSE
+        `,
+        [meetingId, user.id]
+      );
+
+      if (!accessResult.rows[0]) {
+        res.status(403).json({ error: "No tenés permisos para actualizar esta reunión" });
+        return;
+      }
+    }
+
+    req.authUser = sanitizeUser(user);
+    next();
+  }),
   asyncHandler(async (req, res) => {
     const meetingId = Number(req.params.meetingId);
     const status = String(req.body?.status || "").trim();
@@ -2413,6 +2854,7 @@ app.patch(
              created_by, status, created_at, updated_at
       FROM meetings
       WHERE id = $1
+        AND COALESCE(is_deleted, FALSE) = FALSE
       `,
       [meetingId]
     );
@@ -2451,6 +2893,7 @@ app.patch(
 
 app.get(
   "/api/clients/:id",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const { rows } = await query(buildClientSelectQuery("WHERE clients.id = $1 AND clients.is_hidden = FALSE", ""), [Number(req.params.id)]);
     const row = rows[0];
@@ -2467,6 +2910,13 @@ app.get(
 app.post(
   "/api/clients",
   asyncHandler(async (req, res) => {
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
     const payload = req.body || {};
     const errors = await validateClientPayload(payload);
     if (errors.length) {
@@ -2474,12 +2924,26 @@ app.post(
       return;
     }
 
-    res.status(201).json({ client: await createClientRecord(payload) });
+    if (isExecutiveScopedUser(currentUser) && Number(payload.executiveUserId) !== Number(currentUser.id)) {
+      res.status(403).json({ error: "Solo podés crear compañías asignadas a tu usuario" });
+      return;
+    }
+
+    const client = await createClientRecord(payload);
+    await logAuditEvent({
+      req,
+      action: "client.create",
+      entityType: "client",
+      entityId: client.id,
+      entityName: client.name
+    });
+    res.status(201).json({ client });
   })
 );
 
 app.patch(
   "/api/clients/:id",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id, billing_2025 FROM clients WHERE id = $1", [clientId]);
@@ -2493,6 +2957,11 @@ app.patch(
     const errors = await validateClientPayload(payload);
     if (errors.length) {
       res.status(400).json({ error: errors[0] });
+      return;
+    }
+
+    if (isExecutiveScopedUser(req.authUser) && Number(payload.executiveUserId) !== Number(req.authUser.id)) {
+      res.status(403).json({ error: "No podés reasignar esta compañía a otro ejecutivo" });
       return;
     }
 
@@ -2572,12 +3041,21 @@ app.patch(
     );
 
     const selectedUpdated = await query(buildClientSelectQuery("WHERE clients.id = $1", ""), [updatedResult.rows[0].id]);
-    res.json({ client: await buildClientResponse(selectedUpdated.rows[0]) });
+    const client = await buildClientResponse(selectedUpdated.rows[0]);
+    await logAuditEvent({
+      req,
+      action: "client.update",
+      entityType: "client",
+      entityId: client.id,
+      entityName: client.name
+    });
+    res.json({ client });
   })
 );
 
 app.patch(
   "/api/clients/:id/hide",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id, name FROM clients WHERE id = $1 AND is_hidden = FALSE", [clientId]);
@@ -2596,12 +3074,21 @@ app.patch(
       [clientId]
     );
 
+    await logAuditEvent({
+      req,
+      action: "client.hide",
+      entityType: "client",
+      entityId: clientId,
+      entityName: existingClientResult.rows[0].name
+    });
+
     res.json({ ok: true });
   })
 );
 
 app.post(
   "/api/clients/:id/branches",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1", [clientId]);
@@ -2657,12 +3144,22 @@ app.post(
     );
 
     const selectedBranch = await query(buildBranchSelectQuery("WHERE client_branches.id = $1", ""), [result.rows[0].id]);
-    res.status(201).json({ branch: toBranchObject(selectedBranch.rows[0]) });
+    const branch = toBranchObject(selectedBranch.rows[0]);
+    await logAuditEvent({
+      req,
+      action: "branch.create",
+      entityType: "branch",
+      entityId: branch.id,
+      entityName: branch.name,
+      details: { clientId }
+    });
+    res.status(201).json({ branch });
   })
 );
 
 app.patch(
   "/api/clients/:id/branches/:branchId",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const branchId = Number(req.params.branchId);
@@ -2732,12 +3229,22 @@ app.patch(
     );
 
     const selectedBranch = await query(buildBranchSelectQuery("WHERE client_branches.id = $1", ""), [result.rows[0].id]);
-    res.json({ branch: toBranchObject(selectedBranch.rows[0]) });
+    const branch = toBranchObject(selectedBranch.rows[0]);
+    await logAuditEvent({
+      req,
+      action: "branch.update",
+      entityType: "branch",
+      entityId: branch.id,
+      entityName: branch.name,
+      details: { clientId }
+    });
+    res.json({ branch });
   })
 );
 
 app.post(
   "/api/clients/:id/opportunities",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1 AND is_hidden = FALSE", [clientId]);
@@ -2790,6 +3297,7 @@ app.post(
 
 app.patch(
   "/api/clients/:id/opportunities/:opportunityId",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const opportunityId = Number(req.params.opportunityId);
@@ -2855,6 +3363,7 @@ app.patch(
 
 app.post(
   "/api/opportunities/:opportunityId/follow-ups",
+  requireOpportunityAccess,
   asyncHandler(async (req, res) => {
     const opportunityId = Number(req.params.opportunityId);
     const existingOpportunityResult = await query("SELECT id, client_id FROM opportunities WHERE id = $1", [opportunityId]);
@@ -2903,6 +3412,7 @@ app.post(
 
 app.patch(
   "/api/opportunities/:opportunityId/follow-ups/:followUpId",
+  requireOpportunityAccess,
   asyncHandler(async (req, res) => {
     const opportunityId = Number(req.params.opportunityId);
     const followUpId = Number(req.params.followUpId);
@@ -2967,6 +3477,7 @@ app.patch(
 
 app.post(
   "/api/clients/:id/meetings",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1", [clientId]);
@@ -3051,16 +3562,28 @@ app.post(
       return meeting;
     });
 
+    await logAuditEvent({
+      req,
+      action: "meeting.create",
+      entityType: "meeting",
+      entityId: createdMeeting.id,
+      entityName: createdMeeting.subject,
+      details: { clientId }
+    });
     res.status(201).json({ meeting: createdMeeting });
   })
 );
 
 app.patch(
   "/api/clients/:id/meetings/:meetingId",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const meetingId = Number(req.params.meetingId);
-    const existingResult = await query("SELECT id FROM meetings WHERE id = $1 AND client_id = $2", [meetingId, clientId]);
+    const existingResult = await query(
+      "SELECT id FROM meetings WHERE id = $1 AND client_id = $2 AND COALESCE(is_deleted, FALSE) = FALSE",
+      [meetingId, clientId]
+    );
 
     if (!existingResult.rows[0]) {
       res.status(404).json({ error: "Reunión no encontrada" });
@@ -3163,23 +3686,51 @@ app.patch(
       return meeting;
     });
 
+    await logAuditEvent({
+      req,
+      action: "meeting.update",
+      entityType: "meeting",
+      entityId: updatedMeeting.id,
+      entityName: updatedMeeting.subject,
+      details: { clientId }
+    });
     res.json({ meeting: updatedMeeting });
   })
 );
 
 app.delete(
   "/api/clients/:id/meetings/:meetingId",
+  requireClientAccess,
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const meetingId = Number(req.params.meetingId);
-    const existingResult = await query("SELECT id FROM meetings WHERE id = $1 AND client_id = $2", [meetingId, clientId]);
+    const existingResult = await query(
+      "SELECT id, subject FROM meetings WHERE id = $1 AND client_id = $2 AND COALESCE(is_deleted, FALSE) = FALSE",
+      [meetingId, clientId]
+    );
 
-    if (!existingResult.rows[0]) {
+    const meeting = existingResult.rows[0];
+    if (!meeting) {
       res.status(404).json({ error: "Reunión no encontrada" });
       return;
     }
 
-    await query("DELETE FROM meetings WHERE id = $1 AND client_id = $2", [meetingId, clientId]);
+    await query(
+      `
+      UPDATE meetings
+      SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $3, updated_at = NOW()
+      WHERE id = $1 AND client_id = $2
+      `,
+      [meetingId, clientId, String(req.authUser?.name || "").trim()]
+    );
+    await logAuditEvent({
+      req,
+      action: "meeting.delete",
+      entityType: "meeting",
+      entityId: meeting.id,
+      entityName: meeting.subject,
+      details: { clientId }
+    });
     res.json({ ok: true });
   })
 );

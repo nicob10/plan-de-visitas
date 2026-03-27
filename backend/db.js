@@ -484,8 +484,24 @@ async function initDb() {
       service_status TEXT NOT NULL DEFAULT '',
       created_by TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'Agendada' CHECK (status IN ('Agendada', 'Realizada')),
+      is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+      deleted_at TIMESTAMPTZ,
+      deleted_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_name TEXT NOT NULL DEFAULT '',
+      user_email TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL DEFAULT '',
+      entity_id INTEGER,
+      entity_name TEXT NOT NULL DEFAULT '',
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS opportunities (
@@ -557,6 +573,8 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_sector_options_name ON sector_options(name);
     CREATE INDEX IF NOT EXISTS idx_meeting_type_options_sort ON meeting_type_options(sort_order, id);
     CREATE INDEX IF NOT EXISTS idx_meeting_reason_options_sort ON meeting_reason_options(sort_order, id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id, created_at DESC);
   `);
 
   await query(`
@@ -614,8 +632,15 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS global_contacts TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS service_status TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS deleted_by TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_client_branches_executive ON client_branches(executive_user_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_opportunity ON meetings(opportunity_id);
+    CREATE INDEX IF NOT EXISTS idx_meetings_deleted ON meetings(is_deleted, deleted_at);
   `);
 
   await query(`

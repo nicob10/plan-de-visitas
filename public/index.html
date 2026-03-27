@@ -402,142 +402,215 @@
             </div>
           </div>
 
-          <div class="settings-grid">
-            <section class="settings-card">
-              <div class="settings-card-head">
-                <div>
-                  <p class="settings-kicker">Catálogo</p>
-                  <h3>Sectores de actividad</h3>
-                  <p class="section-copy">Los sectores que después se pueden asignar a compañías y sucursales.</p>
-                </div>
-              </div>
-              <form id="sectorForm" class="company-edit-form settings-form">
-                <div class="edit-grid single-row-grid">
-                  <label class="span-2">
-                    Nuevo sector
-                    <input id="newSectorName" type="text" placeholder="Ej: Energía" required />
-                  </label>
-                </div>
-                <div class="edit-actions">
-                  <button id="createSectorBtn" class="primary-btn" type="submit">Agregar sector</button>
-                  <span id="sectorStatus" aria-live="polite"></span>
-                </div>
-              </form>
-              <div class="table-wrap settings-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Sector</th>
-                      <th>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody id="sectorsTableBody"></tbody>
-                </table>
-              </div>
+          <div class="settings-subnav">
+            <button class="secondary-btn settings-tab-btn active-view" type="button" data-settings-tab="catalogs">Catálogos</button>
+            <button class="secondary-btn settings-tab-btn" type="button" data-settings-tab="imports">Importaciones</button>
+            <button class="secondary-btn settings-tab-btn" type="button" data-settings-tab="control">Control</button>
+          </div>
 
-              <div class="settings-import">
-                <div>
-                  <p class="settings-kicker">Importación</p>
-                  <h3>Importar clientes desde Excel</h3>
-                  <p class="section-copy">Usá una plantilla Excel para dar de alta clientes en bloque con sus datos comerciales básicos.</p>
+          <div id="settingsPaneCatalogs" class="settings-pane">
+            <div class="settings-grid">
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Catálogo</p>
+                    <h3>Sectores de actividad</h3>
+                    <p class="section-copy">Los sectores que después se pueden asignar a compañías y sucursales.</p>
+                  </div>
                 </div>
-                <div class="settings-import-actions">
-                  <button id="downloadClientsTemplateBtn" class="secondary-btn" type="button">Descargar plantilla</button>
-                  <label class="file-upload-btn">
-                    <input id="clientsImportFile" type="file" accept=".xlsx,.xls" />
-                    <span>Seleccionar Excel</span>
-                  </label>
-                  <button id="importClientsBtn" class="primary-btn" type="button">Importar clientes</button>
+                <form id="sectorForm" class="company-edit-form settings-form">
+                  <div class="edit-grid single-row-grid">
+                    <label class="span-2">
+                      Nuevo sector
+                      <input id="newSectorName" type="text" placeholder="Ej: Energía" required />
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="createSectorBtn" class="primary-btn" type="submit">Agregar sector</button>
+                    <span id="sectorStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Sector</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="sectorsTableBody"></tbody>
+                  </table>
                 </div>
-                <span id="clientsImportStatus" aria-live="polite"></span>
-                <div id="clientsImportDetails" class="import-result-details hidden"></div>
-              </div>
+              </section>
 
-            </section>
+              <section class="settings-card settings-card-wide">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Agenda</p>
+                    <h3>Tipos de reunión</h3>
+                    <p class="section-copy">Definí la etiqueta visible y el color que se usa en listas, calendario y grilla.</p>
+                  </div>
+                </div>
+                <form id="meetingTypeForm" class="company-edit-form settings-form">
+                  <div class="panel-title-row compact-row">
+                    <h3 id="meetingTypeFormTitle">Nuevo tipo de reunión</h3>
+                    <button id="cancelMeetingTypeEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                  </div>
+                  <div class="edit-grid">
+                    <label>
+                      Nombre interno
+                      <input id="meetingTypeValue" type="text" placeholder="Ej: Comercial" required />
+                    </label>
+                    <label>
+                      Etiqueta visible
+                      <input id="meetingTypeLabel" type="text" placeholder="Ej: Visita Comercial" required />
+                    </label>
+                    <label>
+                      Color
+                      <select id="meetingTypeColor" required></select>
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="saveMeetingTypeBtn" class="primary-btn" type="submit">Guardar tipo</button>
+                    <span id="meetingTypeStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Nombre interno</th>
+                        <th>Etiqueta</th>
+                        <th>Color</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="meetingTypesTableBody"></tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="settings-card settings-card-wide">
-              <div class="settings-card-head">
-                <div>
-                  <p class="settings-kicker">Agenda</p>
-                  <h3>Tipos de reunión</h3>
-                  <p class="section-copy">Definí la etiqueta visible y el color que se usa en listas, calendario y grilla.</p>
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Motivos</p>
+                    <h3>Motivos de reunión</h3>
+                    <p class="section-copy">Opciones rápidas para mantener homogénea la carga comercial.</p>
+                  </div>
                 </div>
-              </div>
-              <form id="meetingTypeForm" class="company-edit-form settings-form">
-                <div class="panel-title-row compact-row">
-                  <h3 id="meetingTypeFormTitle">Nuevo tipo de reunión</h3>
-                  <button id="cancelMeetingTypeEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                <form id="meetingReasonForm" class="company-edit-form settings-form">
+                  <div class="panel-title-row compact-row">
+                    <h3 id="meetingReasonFormTitle">Nuevo motivo de reunión</h3>
+                    <button id="cancelMeetingReasonEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                  </div>
+                  <div class="edit-grid single-row-grid">
+                    <label class="span-2">
+                      Motivo
+                      <input id="meetingReasonName" type="text" placeholder="Ej: Acercamiento al cliente" required />
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="saveMeetingReasonBtn" class="primary-btn" type="submit">Guardar motivo</button>
+                    <span id="meetingReasonStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Motivo</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="meetingReasonsTableBody"></tbody>
+                  </table>
                 </div>
-                <div class="edit-grid">
-                  <label>
-                    Nombre interno
-                    <input id="meetingTypeValue" type="text" placeholder="Ej: Comercial" required />
-                  </label>
-                  <label>
-                    Etiqueta visible
-                    <input id="meetingTypeLabel" type="text" placeholder="Ej: Visita Comercial" required />
-                  </label>
-                  <label>
-                    Color
-                    <select id="meetingTypeColor" required></select>
-                  </label>
-                </div>
-                <div class="edit-actions">
-                  <button id="saveMeetingTypeBtn" class="primary-btn" type="submit">Guardar tipo</button>
-                  <span id="meetingTypeStatus" aria-live="polite"></span>
-                </div>
-              </form>
-              <div class="table-wrap settings-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nombre interno</th>
-                      <th>Etiqueta</th>
-                      <th>Color</th>
-                      <th>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody id="meetingTypesTableBody"></tbody>
-                </table>
-              </div>
-            </section>
+              </section>
+            </div>
+          </div>
 
-            <section class="settings-card">
-              <div class="settings-card-head">
-                <div>
-                  <p class="settings-kicker">Motivos</p>
-                  <h3>Motivos de reunión</h3>
-                  <p class="section-copy">Opciones rápidas para mantener homogénea la carga comercial.</p>
+          <div id="settingsPaneImports" class="settings-pane hidden">
+            <div class="settings-grid settings-grid-single">
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Importación</p>
+                    <h3>Clientes desde Excel</h3>
+                    <p class="section-copy">Usá una plantilla Excel para dar de alta clientes en bloque con sus datos comerciales básicos.</p>
+                  </div>
                 </div>
-              </div>
-              <form id="meetingReasonForm" class="company-edit-form settings-form">
-                <div class="panel-title-row compact-row">
-                  <h3 id="meetingReasonFormTitle">Nuevo motivo de reunión</h3>
-                  <button id="cancelMeetingReasonEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                <div class="settings-import settings-import-roomy">
+                  <div class="settings-import-actions">
+                    <button id="downloadClientsTemplateBtn" class="secondary-btn" type="button">Descargar plantilla</button>
+                    <label class="file-upload-btn">
+                      <input id="clientsImportFile" type="file" accept=".xlsx,.xls" />
+                      <span>Seleccionar Excel</span>
+                    </label>
+                    <button id="importClientsBtn" class="primary-btn" type="button">Importar clientes</button>
+                  </div>
+                  <span id="clientsImportStatus" aria-live="polite"></span>
+                  <div id="clientsImportDetails" class="import-result-details hidden"></div>
                 </div>
-                <div class="edit-grid single-row-grid">
-                  <label class="span-2">
-                    Motivo
-                    <input id="meetingReasonName" type="text" placeholder="Ej: Acercamiento al cliente" required />
-                  </label>
+              </section>
+            </div>
+          </div>
+
+          <div id="settingsPaneControl" class="settings-pane hidden">
+            <div class="settings-grid">
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Papelera</p>
+                    <h3>Reuniones ocultas</h3>
+                    <p class="section-copy">Revisá reuniones eliminadas, quién las ocultó y restauralas cuando haga falta.</p>
+                  </div>
                 </div>
-                <div class="edit-actions">
-                  <button id="saveMeetingReasonBtn" class="primary-btn" type="submit">Guardar motivo</button>
-                  <span id="meetingReasonStatus" aria-live="polite"></span>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Reunión</th>
+                        <th>Eliminada por</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="trashMeetingsTableBody"></tbody>
+                  </table>
                 </div>
-              </form>
-              <div class="table-wrap settings-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Motivo</th>
-                      <th>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody id="meetingReasonsTableBody"></tbody>
-                </table>
-              </div>
-            </section>
+                <div class="settings-card-foot">
+                  <span id="trashMeetingsStatus" aria-live="polite"></span>
+                </div>
+              </section>
+
+              <section class="settings-card settings-card-wide">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Auditoría</p>
+                    <h3>Movimientos de usuarios</h3>
+                    <p class="section-copy">Ingresos, cierres de sesión y cambios clave realizados dentro del sistema.</p>
+                  </div>
+                </div>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>Entidad</th>
+                        <th>Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody id="auditLogsTableBody"></tbody>
+                  </table>
+                </div>
+                <div class="settings-card-foot">
+                  <span id="auditLogsStatus" aria-live="polite"></span>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
       </section>
@@ -913,7 +986,7 @@
             <span class="meeting-kind-badge"></span>
             <span class="meeting-status-badge"></span>
             <button class="ghost-btn edit-meeting-btn" type="button">Editar</button>
-            <button class="ghost-btn delete-meeting-btn" type="button" aria-label="Eliminar reunión" title="Eliminar reunión">🗑</button>
+            <button class="ghost-btn delete-meeting-btn" type="button" aria-label="Enviar reunión a papelera" title="Enviar reunión a papelera">🗑</button>
           </div>
         </div>
         <div class="meeting-meta"></div>

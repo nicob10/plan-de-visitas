@@ -37,6 +37,10 @@ const showVisitsGridBtn = document.getElementById("showVisitsGridBtn");
 const showCalendarBtn = document.getElementById("showCalendarBtn");
 const showUsersBtn = document.getElementById("showUsersBtn");
 const showSettingsBtn = document.getElementById("showSettingsBtn");
+const settingsTabButtons = Array.from(document.querySelectorAll(".settings-tab-btn"));
+const settingsPaneCatalogs = document.getElementById("settingsPaneCatalogs");
+const settingsPaneImports = document.getElementById("settingsPaneImports");
+const settingsPaneControl = document.getElementById("settingsPaneControl");
 const openPipelineFromCrmBtn = document.getElementById("openPipelineFromCrmBtn");
 const openUsersFromSettingsBtn = document.getElementById("openUsersFromSettingsBtn");
 const backToSettingsBtn = document.getElementById("backToSettingsBtn");
@@ -92,6 +96,10 @@ const saveMeetingReasonBtn = document.getElementById("saveMeetingReasonBtn");
 const cancelMeetingReasonEditBtn = document.getElementById("cancelMeetingReasonEditBtn");
 const meetingReasonStatus = document.getElementById("meetingReasonStatus");
 const meetingReasonsTableBody = document.getElementById("meetingReasonsTableBody");
+const trashMeetingsTableBody = document.getElementById("trashMeetingsTableBody");
+const trashMeetingsStatus = document.getElementById("trashMeetingsStatus");
+const auditLogsTableBody = document.getElementById("auditLogsTableBody");
+const auditLogsStatus = document.getElementById("auditLogsStatus");
 const visitsTableBody = document.getElementById("visitsTableBody");
 const visitsVisibleCount = document.getElementById("visitsVisibleCount");
 const visitsSearchInput = document.getElementById("visitsSearchInput");
@@ -263,6 +271,9 @@ let meetingStatuses = [];
 let meetingModalities = [];
 let editingMeetingTypeId = null;
 let editingMeetingReasonId = null;
+let deletedMeetings = [];
+let auditLogs = [];
+let currentSettingsTab = "catalogs";
 let calendarMeetings = [];
 let calendarDate = new Date();
 let calendarView = "month";
@@ -797,6 +808,115 @@ function renderMeetingReasonsConfig() {
   });
 }
 
+function formatDateTime(dateValue) {
+  if (!dateValue) return "-";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function renderDeletedMeetings() {
+  trashMeetingsTableBody.innerHTML = "";
+
+  if (!deletedMeetings.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">No hay reuniones en papelera.</td>';
+    trashMeetingsTableBody.appendChild(row);
+    return;
+  }
+
+  deletedMeetings.forEach((meeting) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${formatDate(meeting.scheduledFor)}</td>
+      <td>${meeting.branchName ? `${meeting.clientName} · ${meeting.branchName}` : meeting.clientName}</td>
+      <td><b>${meeting.subject}</b><br /><small>${meeting.kindLabel || meeting.kind}</small></td>
+      <td>${meeting.deletedBy || "Sin dato"}<br /><small>${formatDateTime(meeting.deletedAt)}</small></td>
+      <td>
+        <div class="table-actions">
+          <button class="secondary-btn restore-meeting-btn" type="button">Recuperar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".restore-meeting-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a recuperar la reunión "${meeting.subject}".`);
+      if (!confirmed) return;
+
+      try {
+        trashMeetingsStatus.textContent = "Recuperando reunión...";
+        await restoreDeletedMeeting(meeting.id);
+        await loadSettingsCatalogs();
+        await loadClients({ clearSelectionWhenMissing: false });
+        await loadCalendar();
+        renderTable();
+        trashMeetingsStatus.textContent = "Reunión recuperada";
+      } catch (error) {
+        trashMeetingsStatus.textContent = error.message;
+      }
+    });
+
+    trashMeetingsTableBody.appendChild(row);
+  });
+}
+
+function formatAuditAction(log) {
+  const actionLabels = {
+    "auth.login": "Inicio de sesión",
+    "auth.logout": "Cierre de sesión",
+    "client.create": "Alta de compañía",
+    "client.update": "Edición de compañía",
+    "client.hide": "Ocultar compañía",
+    "branch.create": "Alta de sucursal",
+    "branch.update": "Edición de sucursal",
+    "meeting.create": "Alta de reunión",
+    "meeting.update": "Edición de reunión",
+    "meeting.delete": "Enviar a papelera",
+    "meeting.restore": "Recuperar reunión",
+    "user.create": "Alta de usuario",
+    "user.update": "Edición de usuario",
+    "user.delete": "Baja de usuario",
+    "settings.sector.create": "Alta de sector",
+    "settings.sector.delete": "Baja de sector",
+    "settings.meeting_type.create": "Alta de tipo de reunión",
+    "settings.meeting_type.update": "Edición de tipo de reunión",
+    "settings.meeting_type.delete": "Baja de tipo de reunión",
+    "settings.meeting_reason.create": "Alta de motivo",
+    "settings.meeting_reason.update": "Edición de motivo",
+    "settings.meeting_reason.delete": "Baja de motivo"
+  };
+  return actionLabels[log.action] || log.action;
+}
+
+function renderAuditLogs() {
+  auditLogsTableBody.innerHTML = "";
+
+  if (!auditLogs.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">Todavía no hay movimientos auditados.</td>';
+    auditLogsTableBody.appendChild(row);
+    return;
+  }
+
+  auditLogs.forEach((log) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${formatDateTime(log.createdAt)}</td>
+      <td><b>${log.userName || "Sistema"}</b><br /><small>${log.userEmail || "-"}</small></td>
+      <td>${formatAuditAction(log)}</td>
+      <td>${log.entityName || log.entityType || "-"}</td>
+      <td>${log.details && Object.keys(log.details).length ? Object.entries(log.details).map(([key, value]) => `${key}: ${value}`).join(" · ") : "-"}</td>
+    `;
+    auditLogsTableBody.appendChild(row);
+  });
+}
+
 function renderVisitsResponsibleFilters() {
   const currentExecutive = visitsExecutiveFilter.value;
   const currentSupervisor = visitsSupervisorFilter.value;
@@ -957,6 +1077,16 @@ function showScreen(screen) {
   syncModalState();
 }
 
+function showSettingsTab(tab) {
+  currentSettingsTab = ["catalogs", "imports", "control"].includes(tab) ? tab : "catalogs";
+  settingsPaneCatalogs.classList.toggle("hidden", currentSettingsTab !== "catalogs");
+  settingsPaneImports.classList.toggle("hidden", currentSettingsTab !== "imports");
+  settingsPaneControl.classList.toggle("hidden", currentSettingsTab !== "control");
+  settingsTabButtons.forEach((button) => {
+    button.classList.toggle("active-view", button.dataset.settingsTab === currentSettingsTab);
+  });
+}
+
 function buildCompanyHash(clientId, branchId = null) {
   if (!clientId) return "#/clientes";
   return branchId ? `#/companias/${clientId}/sucursales/${branchId}` : `#/companias/${clientId}`;
@@ -1114,6 +1244,7 @@ async function applyRouteFromHash() {
       return;
     }
     await loadSettingsCatalogs();
+    showSettingsTab("catalogs");
     showScreen("settings");
     return;
   }
@@ -1824,7 +1955,7 @@ function renderMeetingCard(meeting) {
 
   deleteButton.addEventListener("click", async () => {
     const confirmed = window.confirm(
-      `Se va a eliminar la reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)}.`
+      `La reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)} se va a enviar a la papelera.`
     );
     if (!confirmed) return;
 
@@ -1872,14 +2003,14 @@ function renderCompactMeetingListItem(meeting) {
       <span class="meeting-status-badge ${
         meeting.status === "Realizada" ? "done" : meeting.status === "Confirmada" ? "confirmed" : "scheduled"
       }">${meeting.status}</span>
-      <button class="ghost-btn delete-meeting-btn" type="button" aria-label="Eliminar reunión" title="Eliminar reunión">🗑</button>
+      <button class="ghost-btn delete-meeting-btn" type="button" aria-label="Enviar reunión a papelera" title="Enviar reunión a papelera">🗑</button>
     </div>
   `;
 
   article.querySelector(".delete-meeting-btn").addEventListener("click", async (event) => {
     event.stopPropagation();
     const confirmed = window.confirm(
-      `Se va a eliminar la reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)}.`
+      `La reunión "${meeting.subject}" del ${formatDate(meeting.scheduledFor)} se va a enviar a la papelera.`
     );
     if (!confirmed) return;
 
@@ -2275,7 +2406,7 @@ async function deleteMeeting(meetingId) {
   });
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data?.error || "No se pudo eliminar la reunión");
+    throw new Error(data?.error || "No se pudo enviar la reunión a la papelera");
   }
   return data;
 }
@@ -2315,10 +2446,36 @@ async function loadMeetingReasonsConfig() {
   renderMeetingReasonsConfig();
 }
 
+async function loadDeletedMeetings() {
+  const response = await fetch("/api/settings/trash/meetings");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo cargar la papelera");
+  }
+  deletedMeetings = data.meetings || [];
+  trashMeetingsStatus.textContent = deletedMeetings.length
+    ? `${deletedMeetings.length} reuniones en papelera`
+    : "Papelera vacía";
+  renderDeletedMeetings();
+}
+
+async function loadAuditLogs() {
+  const response = await fetch("/api/settings/audit-logs?limit=150");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo cargar la auditoría");
+  }
+  auditLogs = data.logs || [];
+  auditLogsStatus.textContent = auditLogs.length ? `${auditLogs.length} movimientos recientes` : "Sin movimientos recientes";
+  renderAuditLogs();
+}
+
 async function loadSettingsCatalogs() {
   await loadSectorOptions();
   await loadMeetingTypesConfig();
   await loadMeetingReasonsConfig();
+  await loadDeletedMeetings();
+  await loadAuditLogs();
 }
 
 async function createSector(name) {
@@ -2475,6 +2632,17 @@ async function importUsersFromExcel(file) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || "No se pudo importar el archivo de usuarios");
+  }
+  return data;
+}
+
+async function restoreDeletedMeeting(meetingId) {
+  const response = await fetch(`/api/settings/trash/meetings/${meetingId}/restore`, {
+    method: "POST"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo recuperar la reunión");
   }
   return data;
 }
@@ -2752,6 +2920,7 @@ async function loadCatalogs() {
   meetingStatuses = data.statuses || [];
   meetingModalities = data.modalities || ["Presencial", "Virtual"];
   renderTypeSelectOptions();
+  await loadSectorOptions();
 }
 
 async function loadCrmCatalogs() {
@@ -3149,6 +3318,7 @@ showCalendarBtn.addEventListener("click", async () => {
 showSettingsBtn.addEventListener("click", async () => {
   if (!canAccessSettings()) return;
   await loadSettingsCatalogs();
+  showSettingsTab("catalogs");
   showScreen("settings");
   syncUrlWithState("settings");
 });
@@ -3160,6 +3330,12 @@ openUsersFromSettingsBtn.addEventListener("click", async () => {
   syncUrlWithState("users");
 });
 
+settingsTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    showSettingsTab(button.dataset.settingsTab);
+  });
+});
+
 backToSettingsBtn.addEventListener("click", async () => {
   if (!canAccessSettings()) {
     showScreen("list");
@@ -3167,6 +3343,7 @@ backToSettingsBtn.addEventListener("click", async () => {
     return;
   }
   await loadSettingsCatalogs();
+  showSettingsTab("catalogs");
   showScreen("settings");
   syncUrlWithState("settings");
 });

@@ -2796,6 +2796,111 @@ app.get(
   })
 );
 
+app.get(
+  "/api/visits/stats",
+  asyncHandler(async (req, res) => {
+    const currentUser = await getSessionUser(req);
+    if (!currentUser) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
+    const dateFrom = String(req.query.dateFrom || "").trim();
+    const dateTo = String(req.query.dateTo || "").trim();
+    const params = [];
+    const dateConditions = ["COALESCE(meetings.is_deleted, FALSE) = FALSE"];
+
+    if (dateFrom) {
+      params.push(dateFrom);
+      dateConditions.push(`meetings.scheduled_for >= $${params.length}`);
+    }
+
+    if (dateTo) {
+      params.push(dateTo);
+      dateConditions.push(`meetings.scheduled_for <= $${params.length}`);
+    }
+
+    const executiveScopeCondition = isExecutiveScopedUser(currentUser)
+      ? ` AND EXISTS (
+            SELECT 1
+            FROM clients AS scope_clients
+            WHERE scope_clients.id = meetings.client_id
+              AND scope_clients.executive_user_id = $${params.length + 1}
+              AND scope_clients.is_hidden = FALSE
+          )`
+      : "";
+
+    if (isExecutiveScopedUser(currentUser)) {
+      params.push(Number(currentUser.id));
+    }
+
+    const meetingsJoinClause = `${dateConditions.join(" AND ")}${executiveScopeCondition}`;
+
+    const usersResult = await query(
+      `
+      SELECT
+        users.id,
+        users.name,
+        users.role,
+        COUNT(DISTINCT meetings.id) FILTER (WHERE meetings.status = 'Agendada')::int AS scheduled_count,
+        COUNT(DISTINCT meetings.id) FILTER (WHERE meetings.status = 'Confirmada')::int AS confirmed_count,
+        COUNT(DISTINCT meetings.id) FILTER (WHERE meetings.status = 'Realizada')::int AS completed_count,
+        COUNT(DISTINCT meetings.id)::int AS total_count
+      FROM users
+      LEFT JOIN meetings ON users.id = ANY(meetings.participant_user_ids) AND ${meetingsJoinClause}
+      GROUP BY users.id, users.name, users.role
+      HAVING COUNT(DISTINCT meetings.id) > 0
+      ORDER BY total_count DESC, users.name ASC
+      `,
+      params
+    );
+
+    const typesResult = await query(
+      `
+      SELECT
+        meeting_type_options.id,
+        meeting_type_options.value,
+        meeting_type_options.label,
+        meeting_type_options.color,
+        COUNT(meetings.id) FILTER (WHERE meetings.status = 'Agendada')::int AS scheduled_count,
+        COUNT(meetings.id) FILTER (WHERE meetings.status = 'Confirmada')::int AS confirmed_count,
+        COUNT(meetings.id) FILTER (WHERE meetings.status = 'Realizada')::int AS completed_count,
+        COUNT(meetings.id)::int AS total_count
+      FROM meeting_type_options
+      LEFT JOIN meetings ON meetings.kind = meeting_type_options.value AND ${meetingsJoinClause}
+      GROUP BY meeting_type_options.id, meeting_type_options.value, meeting_type_options.label, meeting_type_options.color, meeting_type_options.sort_order
+      HAVING COUNT(meetings.id) > 0
+      ORDER BY meeting_type_options.sort_order ASC, meeting_type_options.id ASC
+      `,
+      params
+    );
+
+    res.json({
+      period: { dateFrom, dateTo },
+      byUser: usersResult.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        role: row.role,
+        scheduledCount: row.scheduled_count,
+        confirmedCount: row.confirmed_count,
+        completedCount: row.completed_count,
+        totalCount: row.total_count
+      })),
+      byType: typesResult.rows.map((row) => ({
+        id: row.id,
+        value: row.value,
+        label: row.label,
+        color: row.color,
+        scheduledCount: row.scheduled_count,
+        confirmedCount: row.confirmed_count,
+        completedCount: row.completed_count,
+        totalCount: row.total_count
+      }))
+    });
+  })
+);
+
 app.patch(
   "/api/meetings/:meetingId/status",
   asyncHandler(async (req, res, next) => {

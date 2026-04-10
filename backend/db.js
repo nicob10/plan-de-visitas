@@ -175,14 +175,36 @@ function readLegacyMeetings(legacyDb) {
     .get();
 
   if (meetingsTable) {
+    const columns = legacyDb.prepare("PRAGMA table_info(meetings)").all().map((column) => column.name);
+    const selectColumn = (name, fallbackSql) => (columns.includes(name) ? name : `${fallbackSql} AS ${name}`);
+
     return legacyDb
       .prepare(
         `
         SELECT
-          id, client_id, kind, subject, objective, scheduled_for, participants,
-          contact_name, contact_role, modality, next_meeting_date, follow_up_from_meeting_id,
-          minutes, findings, active_negotiations_status, opportunities, substitute_recovery,
-          global_contacts, service_status, created_by, status, created_at, updated_at
+          ${selectColumn("id", "NULL")},
+          ${selectColumn("client_id", "NULL")},
+          ${selectColumn("kind", "'Comercial'")},
+          ${selectColumn("subject", "''")},
+          ${selectColumn("objective", "''")},
+          ${selectColumn("scheduled_for", "''")},
+          ${selectColumn("participants", "''")},
+          ${selectColumn("contact_name", "''")},
+          ${selectColumn("contact_role", "''")},
+          ${selectColumn("modality", "'Presencial'")},
+          ${selectColumn("next_meeting_date", "''")},
+          ${selectColumn("follow_up_from_meeting_id", "NULL")},
+          ${selectColumn("minutes", "''")},
+          ${selectColumn("findings", "''")},
+          ${selectColumn("active_negotiations_status", "''")},
+          ${selectColumn("opportunities", "''")},
+          ${selectColumn("substitute_recovery", "''")},
+          ${selectColumn("global_contacts", "''")},
+          ${selectColumn("service_status", "''")},
+          ${selectColumn("created_by", "''")},
+          ${selectColumn("status", "'Agendada'")},
+          ${selectColumn("created_at", "CURRENT_TIMESTAMP")},
+          ${selectColumn("updated_at", "CURRENT_TIMESTAMP")}
         FROM meetings
         ORDER BY id ASC
         `

@@ -509,6 +509,35 @@ textarea:focus {
   padding: 1.15rem;
 }
 
+.stats-toolbar {
+  margin-bottom: 1rem;
+}
+
+.stats-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.stats-card {
+  border: 1px solid #efdfdf;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 249, 249, 0.96) 100%);
+  box-shadow: 0 10px 24px rgba(78, 22, 22, 0.06);
+  overflow: hidden;
+}
+
+.stats-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1rem 0.55rem;
+  border-bottom: 1px solid rgba(236, 220, 220, 0.82);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 248, 248, 0.92) 100%),
+    radial-gradient(circle at top right, rgba(179, 35, 38, 0.04) 0%, transparent 40%);
+}
+
 .users-import-panel {
   margin: 0 0 1rem;
 }

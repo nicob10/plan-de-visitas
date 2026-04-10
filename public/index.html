@@ -53,6 +53,7 @@
                 <div class="nav-submenu">
                   <button id="showVisitsGridBtn" class="secondary-btn nav-submenu-btn" type="button">Grilla</button>
                   <button id="showCalendarBtn" class="secondary-btn nav-submenu-btn" type="button">Calendario</button>
+                  <button id="showVisitsStatsBtn" class="secondary-btn nav-submenu-btn" type="button">Estadísticas</button>
                 </div>
               </div>
               <div id="crmMenu" class="nav-menu">
@@ -387,6 +388,83 @@
           </div>
           <div id="visitsGridLegend" class="legend-row"></div>
           <div id="visitsGridWrap" class="visits-grid-wrap"></div>
+        </div>
+      </section>
+
+      <section id="visitsStatsScreen" class="hidden">
+        <div class="panel detail-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Estadísticas de visitas</h2>
+              <p class="section-copy">Métricas por usuario y por tipo de visita para el período seleccionado.</p>
+            </div>
+          </div>
+
+          <section class="toolbar panel stats-toolbar">
+            <div class="toolbar-group">
+              <label for="statsDateFrom">Desde</label>
+              <input id="statsDateFrom" type="date" />
+            </div>
+            <div class="toolbar-group">
+              <label for="statsDateTo">Hasta</label>
+              <input id="statsDateTo" type="date" />
+            </div>
+            <div class="toolbar-group toolbar-group-inline">
+              <button id="applyStatsFiltersBtn" class="primary-btn" type="button">Aplicar período</button>
+              <button id="resetStatsFiltersBtn" class="secondary-btn" type="button">Limpiar</button>
+            </div>
+          </section>
+
+          <div class="stats-layout">
+            <section class="stats-card">
+              <div class="stats-card-head">
+                <div>
+                  <p class="settings-kicker">Usuarios</p>
+                  <h3>Visitas por usuario</h3>
+                </div>
+                <span id="statsUsersStatus" class="pill"></span>
+              </div>
+              <div class="table-wrap settings-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Usuario</th>
+                      <th>Rol</th>
+                      <th>Agendadas</th>
+                      <th>Confirmadas</th>
+                      <th>Realizadas</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="statsUsersTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="stats-card">
+              <div class="stats-card-head">
+                <div>
+                  <p class="settings-kicker">Tipos</p>
+                  <h3>Visitas por tipo</h3>
+                </div>
+                <span id="statsTypesStatus" class="pill"></span>
+              </div>
+              <div class="table-wrap settings-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Agendadas</th>
+                      <th>Confirmadas</th>
+                      <th>Realizadas</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="statsTypesTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
 

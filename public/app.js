@@ -35,6 +35,7 @@ const showPipelineBtn = document.getElementById("showPipelineBtn");
 const crmMenu = document.getElementById("crmMenu");
 const showVisitsGridBtn = document.getElementById("showVisitsGridBtn");
 const showCalendarBtn = document.getElementById("showCalendarBtn");
+const showVisitsStatsBtn = document.getElementById("showVisitsStatsBtn");
 const showUsersBtn = document.getElementById("showUsersBtn");
 const showSettingsBtn = document.getElementById("showSettingsBtn");
 const settingsTabButtons = Array.from(document.querySelectorAll(".settings-tab-btn"));
@@ -112,6 +113,14 @@ const visitsParticipantFilter = document.getElementById("visitsParticipantFilter
 const visitsDateFromFilter = document.getElementById("visitsDateFromFilter");
 const visitsDateToFilter = document.getElementById("visitsDateToFilter");
 const exportVisitsBtn = document.getElementById("exportVisitsBtn");
+const statsDateFrom = document.getElementById("statsDateFrom");
+const statsDateTo = document.getElementById("statsDateTo");
+const applyStatsFiltersBtn = document.getElementById("applyStatsFiltersBtn");
+const resetStatsFiltersBtn = document.getElementById("resetStatsFiltersBtn");
+const statsUsersStatus = document.getElementById("statsUsersStatus");
+const statsTypesStatus = document.getElementById("statsTypesStatus");
+const statsUsersTableBody = document.getElementById("statsUsersTableBody");
+const statsTypesTableBody = document.getElementById("statsTypesTableBody");
 
 const listScreen = document.getElementById("listScreen");
 const visitsScreen = document.getElementById("visitsScreen");
@@ -121,6 +130,7 @@ const editScreen = document.getElementById("editScreen");
 const meetingScreen = document.getElementById("meetingScreen");
 const calendarScreen = document.getElementById("calendarScreen");
 const visitsGridScreen = document.getElementById("visitsGridScreen");
+const visitsStatsScreen = document.getElementById("visitsStatsScreen");
 const usersScreen = document.getElementById("usersScreen");
 const settingsScreen = document.getElementById("settingsScreen");
 const visitsGridWrap = document.getElementById("visitsGridWrap");
@@ -286,6 +296,10 @@ let editingUserId = null;
 let sectorOptions = [];
 let visits = [];
 let visitsGridData = [];
+let visitStats = {
+  byUser: [],
+  byType: []
+};
 let visitsSearchTimer = null;
 let pipelineSearchTimer = null;
 let visitsSort = {
@@ -1063,16 +1077,21 @@ function showScreen(screen) {
   meetingScreen.classList.toggle("hidden", nextScreen !== "meeting");
   calendarScreen.classList.toggle("hidden", nextScreen !== "calendar");
   visitsGridScreen.classList.toggle("hidden", nextScreen !== "visits-grid");
+  visitsStatsScreen.classList.toggle("hidden", nextScreen !== "visits-stats");
   usersScreen.classList.toggle("hidden", nextScreen !== "users");
   settingsScreen.classList.toggle("hidden", nextScreen !== "settings");
   showClientsBtn.classList.toggle(
     "active-view",
     nextScreen === "list" || nextScreen === "detail" || nextScreen === "edit" || nextScreen === "meeting"
   );
-  showVisitsBtn.classList.toggle("active-view", nextScreen === "visits" || nextScreen === "visits-grid" || nextScreen === "calendar");
+  showVisitsBtn.classList.toggle(
+    "active-view",
+    nextScreen === "visits" || nextScreen === "visits-grid" || nextScreen === "calendar" || nextScreen === "visits-stats"
+  );
   showPipelineBtn.classList.toggle("active-view", CRM_ENABLED && nextScreen === "pipeline");
   showVisitsGridBtn.classList.toggle("active-view", nextScreen === "visits-grid");
   showCalendarBtn.classList.toggle("active-view", nextScreen === "calendar");
+  showVisitsStatsBtn.classList.toggle("active-view", nextScreen === "visits-stats");
   showSettingsBtn.classList.toggle("active-view", nextScreen === "settings" || nextScreen === "users");
   syncModalState();
 }
@@ -1109,6 +1128,10 @@ function syncUrlWithState(screen) {
   }
   if (screen === "calendar") {
     replaceHash("#/calendario");
+    return;
+  }
+  if (screen === "visits-stats") {
+    replaceHash("#/visitas/estadisticas");
     return;
   }
   if (screen === "visitas" || screen === "visits") {
@@ -1185,6 +1208,7 @@ function parseAppHash() {
   }
 
   if (normalized === "/calendario") return { screen: "calendar" };
+  if (normalized === "/visitas/estadisticas") return { screen: "visits-stats" };
   if (normalized === "/visitas") return { screen: "visits" };
   if (normalized === "/pipeline") return { screen: "pipeline" };
   if (normalized === "/configuracion/usuarios") return { screen: "users" };
@@ -1212,6 +1236,12 @@ async function applyRouteFromHash() {
   if (route.screen === "visits") {
     await loadVisits();
     showScreen("visits");
+    return;
+  }
+
+  if (route.screen === "visits-stats") {
+    await loadVisitsStats();
+    showScreen("visits-stats");
     return;
   }
 
@@ -1484,6 +1514,58 @@ function getCalendarFilters() {
   return {
     participantUserId: calendarParticipantFilter.value
   };
+}
+
+function getVisitsStatsFilters() {
+  return {
+    dateFrom: statsDateFrom.value,
+    dateTo: statsDateTo.value
+  };
+}
+
+function renderVisitStats() {
+  statsUsersTableBody.innerHTML = "";
+  statsTypesTableBody.innerHTML = "";
+
+  if (!visitStats.byUser.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="6" class="muted-inline">No hay visitas en el período seleccionado.</td>';
+    statsUsersTableBody.appendChild(row);
+  } else {
+    visitStats.byUser.forEach((item) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><b>${item.name}</b></td>
+        <td>${item.role}</td>
+        <td>${item.scheduledCount}</td>
+        <td>${item.confirmedCount}</td>
+        <td>${item.completedCount}</td>
+        <td><b>${item.totalCount}</b></td>
+      `;
+      statsUsersTableBody.appendChild(row);
+    });
+  }
+
+  if (!visitStats.byType.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">No hay tipos con visitas en el período seleccionado.</td>';
+    statsTypesTableBody.appendChild(row);
+  } else {
+    visitStats.byType.forEach((item) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><span class="meeting-kind-badge ${item.color}">${item.label}</span></td>
+        <td>${item.scheduledCount}</td>
+        <td>${item.confirmedCount}</td>
+        <td>${item.completedCount}</td>
+        <td><b>${item.totalCount}</b></td>
+      `;
+      statsTypesTableBody.appendChild(row);
+    });
+  }
+
+  statsUsersStatus.textContent = `${visitStats.byUser.length} usuarios`;
+  statsTypesStatus.textContent = `${visitStats.byType.length} tipos`;
 }
 
 function kpiItem(label, value) {
@@ -3056,6 +3138,30 @@ async function exportVisits() {
   URL.revokeObjectURL(url);
 }
 
+async function loadVisitsStats() {
+  statsUsersStatus.textContent = "Cargando...";
+  statsTypesStatus.textContent = "Cargando...";
+
+  try {
+    const query = buildQuery(getVisitsStatsFilters());
+    const response = await fetch(`/api/visits/stats${query ? `?${query}` : ""}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "No se pudieron cargar las estadísticas");
+    }
+
+    visitStats = {
+      byUser: data.byUser || [],
+      byType: data.byType || []
+    };
+    renderVisitStats();
+  } catch (error) {
+    statsUsersStatus.textContent = "Error";
+    statsTypesStatus.textContent = "Error";
+    notifyError(error.message);
+  }
+}
+
 async function loadClients(options = {}) {
   const { clearSelectionWhenMissing = true } = options;
   visibleCount.textContent = "Cargando...";
@@ -3315,6 +3421,12 @@ showCalendarBtn.addEventListener("click", async () => {
   syncUrlWithState("calendar");
 });
 
+showVisitsStatsBtn.addEventListener("click", async () => {
+  await loadVisitsStats();
+  showScreen("visits-stats");
+  syncUrlWithState("visits-stats");
+});
+
 showSettingsBtn.addEventListener("click", async () => {
   if (!canAccessSettings()) return;
   await loadSettingsCatalogs();
@@ -3417,6 +3529,16 @@ importUsersBtn.addEventListener("click", async () => {
   } finally {
     importUsersBtn.disabled = false;
   }
+});
+
+applyStatsFiltersBtn.addEventListener("click", async () => {
+  await loadVisitsStats();
+});
+
+resetStatsFiltersBtn.addEventListener("click", async () => {
+  statsDateFrom.value = "";
+  statsDateTo.value = "";
+  await loadVisitsStats();
 });
 
 document.querySelectorAll(".table-sort-btn").forEach((button) => {

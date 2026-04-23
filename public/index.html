@@ -29,6 +29,10 @@
               Contraseña
               <input id="loginPassword" type="password" autocomplete="current-password" required />
             </label>
+            <label class="login-remember">
+              <input id="loginRemember" type="checkbox" />
+              <span>Recordarme en este dispositivo</span>
+            </label>
             <button id="loginSubmit" class="primary-btn" type="submit">Entrar</button>
             <span id="loginStatus" aria-live="polite"></span>
           </form>
@@ -327,6 +331,12 @@
                 <select id="newUserRole" required></select>
               </label>
               <label>
+                Usuario Bitrix
+                <input id="newUserBitrixSearch" type="text" placeholder="Buscar usuario activo de Bitrix" autocomplete="off" />
+                <div id="newUserBitrixOptions" class="bitrix-search-dropdown hidden"></div>
+                <input id="newUserBitrixId" type="hidden" />
+              </label>
+              <label>
                 Contraseña
                 <input id="newUserPassword" type="password" minlength="6" required />
               </label>
@@ -343,6 +353,7 @@
                   <th>Nombre</th>
                   <th>Email</th>
                   <th>Rol</th>
+                  <th>Bitrix User ID</th>
                   <th>Acción</th>
                 </tr>
               </thead>
@@ -402,6 +413,12 @@
 
           <section class="toolbar panel stats-toolbar">
             <div class="toolbar-group">
+              <label for="statsExecutiveFilter">Ejecutivo</label>
+              <select id="statsExecutiveFilter">
+                <option value="todos">Todos</option>
+              </select>
+            </div>
+            <div class="toolbar-group">
               <label for="statsDateFrom">Desde</label>
               <input id="statsDateFrom" type="date" />
             </div>
@@ -412,6 +429,63 @@
             <div class="toolbar-group toolbar-group-inline">
               <button id="applyStatsFiltersBtn" class="primary-btn" type="button">Aplicar período</button>
               <button id="resetStatsFiltersBtn" class="secondary-btn" type="button">Limpiar</button>
+            </div>
+          </section>
+
+          <section id="statsRulesCard" class="stats-card stats-summary-card">
+            <div class="stats-card-head">
+              <div>
+                <p class="settings-kicker">Reglas automáticas</p>
+                <h3>Visitas generadas por reglas</h3>
+              </div>
+              <span id="statsRulesStatus" class="pill"></span>
+            </div>
+            <div class="stats-summary-grid">
+              <article class="stats-summary-item">
+                <span>Visitas a ejecutar</span>
+                <b id="statsRulesTotal">0</b>
+              </article>
+              <article class="stats-summary-item">
+                <span>Visitas ejecutadas</span>
+                <b id="statsRulesCompleted">0</b>
+              </article>
+              <article class="stats-summary-item">
+                <span>Cumplimiento</span>
+                <b id="statsRulesCompletionRate">0%</b>
+              </article>
+            </div>
+          </section>
+
+          <section id="statsSemaphoreCard" class="stats-card stats-semaphore-card">
+            <div class="stats-card-head">
+              <div>
+                <p class="settings-kicker">Semáforo</p>
+                <h3>Cumplimiento actual del plan por reglas</h3>
+                <p class="section-copy">Estado actual de las reglas automáticas según si ya se cumplieron, están por vencer o quedaron atrasadas.</p>
+              </div>
+              <span id="statsSemaphoreStatus" class="pill"></span>
+            </div>
+            <div class="stats-summary-grid stats-semaphore-grid">
+              <article class="stats-summary-item semaphore-white">
+                <span>Blanco</span>
+                <b id="statsSemaphoreWhiteRate">0%</b>
+                <small id="statsSemaphoreWhiteCount">0 reglas</small>
+              </article>
+              <article class="stats-summary-item semaphore-green">
+                <span>Verde</span>
+                <b id="statsSemaphoreGreenRate">0%</b>
+                <small id="statsSemaphoreGreenCount">0 reglas</small>
+              </article>
+              <article class="stats-summary-item semaphore-yellow">
+                <span>Amarillo</span>
+                <b id="statsSemaphoreYellowRate">0%</b>
+                <small id="statsSemaphoreYellowCount">0 reglas</small>
+              </article>
+              <article class="stats-summary-item semaphore-red">
+                <span>Rojo</span>
+                <b id="statsSemaphoreRedRate">0%</b>
+                <small id="statsSemaphoreRedCount">0 reglas</small>
+              </article>
             </div>
           </section>
 
@@ -604,6 +678,43 @@
                   </table>
                 </div>
               </section>
+
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Contactos</p>
+                    <h3>Funciones del contacto</h3>
+                    <p class="section-copy">Opciones fijas para clasificar el rol de la persona con la que se realizó la reunión.</p>
+                  </div>
+                </div>
+                <form id="contactRoleForm" class="company-edit-form settings-form">
+                  <div class="panel-title-row compact-row">
+                    <h3 id="contactRoleFormTitle">Nueva función del contacto</h3>
+                    <button id="cancelContactRoleEditBtn" class="secondary-btn hidden" type="button">Cancelar edición</button>
+                  </div>
+                  <div class="edit-grid single-row-grid">
+                    <label class="span-2">
+                      Función
+                      <input id="contactRoleName" type="text" placeholder="Ej: Usuario" required />
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="saveContactRoleBtn" class="primary-btn" type="submit">Guardar función</button>
+                    <span id="contactRoleStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Función</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="contactRolesTableBody"></tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -630,11 +741,56 @@
                   <div id="clientsImportDetails" class="import-result-details hidden"></div>
                 </div>
               </section>
+
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Importación</p>
+                    <h3>Sucursales desde Excel</h3>
+                    <p class="section-copy">Importá sucursales en bloque asociándolas a una compañía existente por nombre.</p>
+                  </div>
+                </div>
+                <div class="settings-import settings-import-roomy">
+                  <div class="settings-import-actions">
+                    <button id="downloadBranchesTemplateBtn" class="secondary-btn" type="button">Descargar plantilla</button>
+                    <label class="file-upload-btn">
+                      <input id="branchesImportFile" type="file" accept=".xlsx,.xls" />
+                      <span>Seleccionar Excel</span>
+                    </label>
+                    <button id="importBranchesBtn" class="primary-btn" type="button">Importar sucursales</button>
+                  </div>
+                  <span id="branchesImportStatus" aria-live="polite"></span>
+                  <div id="branchesImportDetails" class="import-result-details hidden"></div>
+                </div>
+              </section>
             </div>
           </div>
 
           <div id="settingsPaneControl" class="settings-pane hidden">
             <div class="settings-grid">
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Módulos</p>
+                    <h3>Reglas automáticas de visitas</h3>
+                    <p class="section-copy">Activá o desactivá el módulo de reglas en clientes y sucursales, junto con sus estadísticas.</p>
+                  </div>
+                </div>
+                <form id="visitRulesFeatureForm" class="company-edit-form settings-form">
+                  <label class="settings-switch-row">
+                    <span>
+                      <strong>Habilitar reglas automáticas</strong>
+                      <small>Si se desactiva, se ocultan las reglas y sus estadísticas, y se detiene la lógica automática de generación.</small>
+                    </span>
+                    <input id="visitRulesFeatureToggle" type="checkbox" />
+                  </label>
+                  <div class="edit-actions">
+                    <button id="saveVisitRulesFeatureBtn" class="primary-btn" type="submit">Guardar ajuste</button>
+                    <span id="visitRulesFeatureStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+              </section>
+
               <section class="settings-card">
                 <div class="settings-card-head">
                   <div>
@@ -686,6 +842,122 @@
                 </div>
                 <div class="settings-card-foot">
                   <span id="auditLogsStatus" aria-live="polite"></span>
+                </div>
+              </section>
+
+              <section class="settings-card settings-card-wide">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="settings-kicker">Integración</p>
+                    <h3>Bitrix</h3>
+                    <p class="section-copy">Probá el webhook, revisá mapeos automáticos y generá una tarea de prueba en Bitrix sin salir del sistema.</p>
+                  </div>
+                </div>
+                <form id="bitrixUsersPreviewForm" class="company-edit-form settings-form">
+                  <div class="edit-grid single-row-grid">
+                    <label class="span-2">
+                      Webhook o URL de Bitrix
+                      <input
+                        id="bitrixWebhookUrl"
+                        type="url"
+                        placeholder="https://tuempresa.bitrix24.../user.get.json"
+                        autocomplete="off"
+                        required
+                      />
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="loadBitrixUsersBtn" class="primary-btn" type="submit">Actualizar vista Bitrix</button>
+                    <button id="saveBitrixWebhookBtn" class="secondary-btn" type="button">Guardar webhook</button>
+                    <span id="bitrixUsersStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="bitrix-summary-grid">
+                  <article class="bitrix-summary-item">
+                    <span>Usuarios app</span>
+                    <b id="bitrixLocalUsersCount">0</b>
+                  </article>
+                  <article class="bitrix-summary-item">
+                    <span>Usuarios Bitrix</span>
+                    <b id="bitrixRemoteUsersCount">0</b>
+                  </article>
+                  <article class="bitrix-summary-item">
+                    <span>Clientes app</span>
+                    <b id="bitrixLocalClientsCount">0</b>
+                  </article>
+                  <article class="bitrix-summary-item">
+                    <span>Compañías Bitrix</span>
+                    <b id="bitrixRemoteCompaniesCount">0</b>
+                  </article>
+                  <article class="bitrix-summary-item">
+                    <span>Leads Bitrix</span>
+                    <b id="bitrixRemoteLeadsCount">0</b>
+                  </article>
+                </div>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Usuario app</th>
+                        <th>ID Bitrix</th>
+                        <th>Usuario Bitrix</th>
+                        <th>Email</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bitrixUserMappingsTableBody"></tbody>
+                  </table>
+                </div>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Cliente app</th>
+                        <th>ID Compañía</th>
+                        <th>ID Lead</th>
+                        <th>Registro Bitrix</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bitrixClientMappingsTableBody"></tbody>
+                  </table>
+                </div>
+                <form id="bitrixTaskTestForm" class="company-edit-form settings-form">
+                  <div class="panel-title-row compact-row">
+                    <h3>Tarea de prueba</h3>
+                  </div>
+                  <div class="edit-grid">
+                    <label>
+                      Título
+                      <input id="bitrixTaskTitle" type="text" placeholder="Ej: Seguimiento desde Plan de Visitas" required />
+                    </label>
+                    <label>
+                      Responsable Bitrix
+                      <select id="bitrixTaskResponsible" required></select>
+                    </label>
+                    <label class="span-2">
+                      Descripción
+                      <textarea id="bitrixTaskDescription" rows="3" placeholder="Detalle o contexto de la tarea de prueba"></textarea>
+                    </label>
+                  </div>
+                  <div class="edit-actions">
+                    <button id="createBitrixTaskBtn" class="secondary-btn" type="submit">Crear tarea de prueba en Bitrix</button>
+                    <span id="bitrixTaskStatus" aria-live="polite"></span>
+                  </div>
+                </form>
+                <div class="table-wrap settings-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID Bitrix</th>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Cargo</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bitrixUsersTableBody"></tbody>
+                  </table>
                 </div>
               </section>
             </div>
@@ -908,7 +1180,7 @@
               </label>
               <label>
                 Función del contacto
-                <input id="meetingContactRole" type="text" placeholder="Ej: Gerente de Planta" required />
+                <select id="meetingContactRole" required></select>
               </label>
               <label>
                 Estado
@@ -945,9 +1217,19 @@
               Contactos Global
               <textarea id="meetingGlobalContacts" rows="4" placeholder="Contactos globales y vínculos relevantes"></textarea>
             </label>
+            <label id="meetingServiceHealthStatusGroup" class="hidden">
+              Status del servicio
+              <textarea id="meetingServiceHealthStatus" rows="4" placeholder="Situación actual del servicio, desvíos y feedback"></textarea>
+            </label>
             <label id="meetingServiceStatusGroup" class="hidden">
-              Status sobre el servicio
-              <textarea id="meetingServiceStatus" rows="4" placeholder="Situación actual del servicio, desvíos y feedback"></textarea>
+              Reclamos
+              <textarea id="meetingServiceStatus" rows="4" placeholder="Detalle de reclamos, desvíos y feedback del servicio"></textarea>
+            </label>
+            <label id="meetingComplaintBitrixResponsibleGroup" class="hidden">
+              Responsable Bitrix del reclamo
+              <select id="meetingComplaintBitrixResponsible">
+                <option value="">Seleccionar responsable</option>
+              </select>
             </label>
             <div class="edit-actions">
               <button id="saveMeetingBtn" class="primary-btn" type="submit">Guardar reunión</button>
@@ -998,6 +1280,13 @@
                 </select>
               </label>
               <label>
+                Compañía Bitrix
+                <input id="editBitrixCompanySearch" type="text" placeholder="Buscar compañía actual de Bitrix" autocomplete="off" />
+                <div id="editBitrixCompanyOptions" class="bitrix-search-dropdown hidden"></div>
+                <input id="editBitrixCompanyId" type="hidden" />
+                <input id="editBitrixLeadId" type="hidden" />
+              </label>
+              <label>
                 Ejecutivo
                 <select id="editManager" required></select>
               </label>
@@ -1042,6 +1331,16 @@
               Notas
               <textarea id="editNotes" rows="3" placeholder="Notas internas"></textarea>
             </label>
+            <div id="visitRulesEditorSection" class="rules-editor">
+              <div class="panel-title-row compact-row">
+                <div>
+                  <h3>Reglas de visita</h3>
+                  <p class="section-copy">Definí periodicidad, a quién visitar y con qué objetivo.</p>
+                </div>
+                <button id="addVisitRuleBtn" class="secondary-btn" type="button">+ Agregar regla</button>
+              </div>
+              <div id="visitRulesList" class="visit-rules-list"></div>
+            </div>
             <div class="edit-actions">
               <button id="saveCompanyBtn" class="primary-btn" type="submit">Guardar cambios</button>
               <button id="hideCompanyBtn" class="ghost-btn hidden" type="button">Ocultar compañía</button>
@@ -1093,8 +1392,12 @@
             <h5>Contactos Global</h5>
             <p class="meeting-global-contacts"></p>
           </div>
+          <div class="meeting-service-health-status-block hidden">
+            <h5>Status del servicio</h5>
+            <p class="meeting-service-health-status"></p>
+          </div>
           <div class="meeting-service-status-block hidden">
-            <h5>Status sobre el servicio</h5>
+            <h5>Reclamos</h5>
             <p class="meeting-service-status"></p>
           </div>
         </div>

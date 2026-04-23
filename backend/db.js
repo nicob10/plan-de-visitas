@@ -49,6 +49,8 @@ const DEFAULT_SECTOR_OPTIONS = [
   "Utilities"
 ];
 
+const DEFAULT_CONTACT_ROLE_OPTIONS = ["Usuario", "Comprador", "Nuevo contacto"];
+
 function hashPassword(password) {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
@@ -169,6 +171,24 @@ async function seedMeetingReasonOptions() {
   });
 }
 
+async function seedContactRoleOptions() {
+  const existingRoles = await query("SELECT COUNT(*)::int AS count FROM contact_role_options");
+  if (Number(existingRoles.rows[0]?.count || 0) > 0) return;
+
+  await withTransaction(async (client) => {
+    for (const [index, role] of DEFAULT_CONTACT_ROLE_OPTIONS.entries()) {
+      await client.query(
+        `
+        INSERT INTO contact_role_options (name, sort_order)
+        VALUES ($1, $2)
+        ON CONFLICT (name) DO NOTHING
+        `,
+        [role, index + 1]
+      );
+    }
+  });
+}
+
 function readLegacyMeetings(legacyDb) {
   const meetingsTable = legacyDb
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meetings'")
@@ -200,7 +220,10 @@ function readLegacyMeetings(legacyDb) {
           ${selectColumn("opportunities", "''")},
           ${selectColumn("substitute_recovery", "''")},
           ${selectColumn("global_contacts", "''")},
+          ${selectColumn("service_health_status", "''")},
           ${selectColumn("service_status", "''")},
+          ${selectColumn("complaint_bitrix_responsible_id", "''")},
+          ${selectColumn("complaint_bitrix_task_id", "''")},
           ${selectColumn("created_by", "''")},
           ${selectColumn("status", "'Agendada'")},
           ${selectColumn("created_at", "CURRENT_TIMESTAMP")},
@@ -250,7 +273,10 @@ function readLegacyMeetings(legacyDb) {
       opportunities: "",
       substitute_recovery: "",
       global_contacts: "",
+      service_health_status: "",
       service_status: "",
+      complaint_bitrix_responsible_id: "",
+      complaint_bitrix_task_id: "",
       created_by: "",
       status: visit.done ? "Realizada" : "Agendada",
       created_at: new Date().toISOString(),
@@ -378,12 +404,13 @@ async function migrateLegacySqliteIfNeeded() {
             id, client_id, kind, subject, objective, scheduled_for, participants,
             contact_name, contact_role, modality, next_meeting_date, follow_up_from_meeting_id,
             minutes, findings, active_negotiations_status, opportunities, substitute_recovery,
-            global_contacts, service_status, created_by, status, created_at, updated_at
+            global_contacts, service_health_status, service_status, complaint_bitrix_responsible_id, complaint_bitrix_task_id,
+            created_by, status, created_at, updated_at
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10, $11, $12,
-            $13, $14, $15, $16, $17, $18, $19,
-            $20, $21, COALESCE($22::timestamptz, NOW()), COALESCE($23::timestamptz, NOW())
+            $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+            $23, $24, COALESCE($25::timestamptz, NOW()), COALESCE($26::timestamptz, NOW())
           )
           ON CONFLICT (id) DO NOTHING
           `,
@@ -406,7 +433,10 @@ async function migrateLegacySqliteIfNeeded() {
             row.opportunities || "",
             row.substitute_recovery || "",
             row.global_contacts || "",
+            row.service_health_status || "",
             row.service_status || "",
+            row.complaint_bitrix_responsible_id || "",
+            row.complaint_bitrix_task_id || "",
             row.created_by || "",
             row.status === "Realizada" ? "Realizada" : "Agendada",
             row.created_at || null,
@@ -466,6 +496,7 @@ async function initDb() {
       client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       billing_2025 NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      bitrix_company_id TEXT NOT NULL DEFAULT '',
       sector TEXT NOT NULL,
       manager TEXT NOT NULL,
       risk TEXT NOT NULL CHECK (risk IN ('Bajo', 'Medio', 'Alto')),
@@ -477,6 +508,17 @@ async function initDb() {
       supervisor_ifci_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       supervisor_ext_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       supervisor_works_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS visit_rules (
+      id SERIAL PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      periodicity_days INTEGER NOT NULL DEFAULT 30,
+      contact_role TEXT NOT NULL DEFAULT '',
+      objective TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -503,7 +545,10 @@ async function initDb() {
       opportunities TEXT NOT NULL DEFAULT '',
       substitute_recovery TEXT NOT NULL DEFAULT '',
       global_contacts TEXT NOT NULL DEFAULT '',
+      service_health_status TEXT NOT NULL DEFAULT '',
       service_status TEXT NOT NULL DEFAULT '',
+      complaint_bitrix_responsible_id TEXT NOT NULL DEFAULT '',
+      complaint_bitrix_task_id TEXT NOT NULL DEFAULT '',
       created_by TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'Agendada' CHECK (status IN ('Agendada', 'Realizada')),
       is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
@@ -583,9 +628,23 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS contact_role_options (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_clients_filters
       ON clients(risk, segment, service_fixed_fire, service_extinguishers, service_works);
     CREATE INDEX IF NOT EXISTS idx_branches_client ON client_branches(client_id);
+    CREATE INDEX IF NOT EXISTS idx_visit_rules_entity ON visit_rules(entity_type, entity_id, id);
     CREATE INDEX IF NOT EXISTS idx_meetings_client ON meetings(client_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_schedule ON meetings(scheduled_for, status);
     CREATE INDEX IF NOT EXISTS idx_opportunities_client ON opportunities(client_id);
@@ -595,11 +654,14 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_sector_options_name ON sector_options(name);
     CREATE INDEX IF NOT EXISTS idx_meeting_type_options_sort ON meeting_type_options(sort_order, id);
     CREATE INDEX IF NOT EXISTS idx_meeting_reason_options_sort ON meeting_reason_options(sort_order, id);
+    CREATE INDEX IF NOT EXISTS idx_contact_role_options_sort ON contact_role_options(sort_order, id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id, created_at DESC);
   `);
 
   await query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS bitrix_user_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE clients
       ADD COLUMN IF NOT EXISTS executive_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE clients
@@ -616,6 +678,10 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS account_stage TEXT NOT NULL DEFAULT 'Activa';
     ALTER TABLE clients
       ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE clients
+      ADD COLUMN IF NOT EXISTS bitrix_lead_id TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients
+      ADD COLUMN IF NOT EXISTS bitrix_company_id TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_clients_executive ON clients(executive_user_id);
   `);
 
@@ -624,6 +690,8 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS billing_2025 NUMERIC(14, 2) NOT NULL DEFAULT 0;
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS executive_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE client_branches
+      ADD COLUMN IF NOT EXISTS bitrix_company_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE client_branches
@@ -653,16 +721,31 @@ async function initDb() {
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS global_contacts TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS service_health_status TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS service_status TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS complaint_bitrix_responsible_id TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS complaint_bitrix_task_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS deleted_by TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS is_automatic BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS automatic_rule_id INTEGER;
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS automatic_rule_entity_type TEXT NOT NULL DEFAULT '';
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS automatic_rule_entity_id INTEGER;
     CREATE INDEX IF NOT EXISTS idx_client_branches_executive ON client_branches(executive_user_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_opportunity ON meetings(opportunity_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_deleted ON meetings(is_deleted, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_meetings_automatic_rule ON meetings(automatic_rule_id, is_deleted, status);
   `);
 
   await query(`
@@ -790,6 +873,7 @@ async function initDb() {
   await seedSectorOptions();
   await seedMeetingTypeOptions();
   await seedMeetingReasonOptions();
+  await seedContactRoleOptions();
 }
 
 async function normalizeRolesAndAssignments() {

@@ -22,6 +22,7 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const REMEMBER_ME_COOKIE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const VALID_RISKS = new Set(["Bajo", "Medio", "Alto"]);
 const VALID_SEGMENTS = new Set(["A", "B", "C"]);
 const VALID_COMPANY_TYPES = new Set(["Local", "Global"]);
@@ -29,7 +30,9 @@ const VALID_COUNTRIES = new Set(["Argentina", "Bolivia", "Mexico"]);
 const VALID_ACCOUNT_STAGES = new Set(["Activa", "Prospecto"]);
 const VALID_MEETING_STATUS = new Set(Object.values(MEETING_STATUS));
 const MEETING_MODALITIES = ["Virtual", "Presencial"];
+const VISIT_RULE_OBJECTIVES = ["Desarrollo de cuentas", "Nuevo negocio"];
 const VALID_MEETING_MODALITIES = new Set(MEETING_MODALITIES);
+const VALID_VISIT_RULE_OBJECTIVES = new Set(VISIT_RULE_OBJECTIVES);
 const VALID_OPPORTUNITY_STATUS = new Set(OPPORTUNITY_STATUS_OPTIONS);
 const VALID_SERVICE_LINES = new Set(OPPORTUNITY_SERVICE_LINES);
 const VALID_OPPORTUNITY_TYPES = new Set(OPPORTUNITY_TYPES);
@@ -41,6 +44,20 @@ const OPPORTUNITY_STATUS_SORT_ORDER = OPPORTUNITY_STATUS_OPTIONS.reduce((accumul
   return accumulator;
 }, {});
 const EXECUTIVE_ROLE = USER_ROLES.EXECUTIVE;
+const VISIT_RULES_FEATURE_SETTING_KEY = "visit_rules_enabled";
+const RULE_SEMAPHORE = {
+  WHITE: "white",
+  GREEN: "green",
+  YELLOW: "yellow",
+  RED: "red"
+};
+const BITRIX_COMPLAINT_GROUP_ID = 46;
+const BITRIX_COMPLAINT_RESPONSIBLES = [
+  { id: "44", name: "Gonzalo Garcia" },
+  { id: "10542", name: "Guillermo Saralegui" },
+  { id: "1720", name: "Guido Avalo Ceci" }
+];
+const VALID_BITRIX_COMPLAINT_RESPONSIBLE_IDS = new Set(BITRIX_COMPLAINT_RESPONSIBLES.map((item) => item.id));
 const SUPERVISOR_ROLE_BY_SERVICE = {
   fixedFire: USER_ROLES.SUPERVISOR_IFCI,
   extinguishers: USER_ROLES.SUPERVISOR_EXT,
@@ -48,6 +65,7 @@ const SUPERVISOR_ROLE_BY_SERVICE = {
 };
 let meetingTypeOptionsCache = [...MEETING_TYPES];
 let meetingReasonOptionsCache = [...MEETING_REASONS];
+let contactRoleOptionsCache = [];
 
 app.use(cors());
 app.use(express.json());
@@ -80,7 +98,8 @@ function sanitizeUser(row) {
     id: row.id,
     name: row.name,
     email: row.email,
-    role: row.role
+    role: row.role,
+    bitrixUserId: row.bitrix_user_id || ""
   };
 }
 
@@ -125,6 +144,472 @@ function getMeetingReasons() {
   return meetingReasonOptionsCache;
 }
 
+async function refreshContactRoleOptionsCache() {
+  const { rows } = await query(
+    `
+    SELECT id, name, sort_order
+    FROM contact_role_options
+    ORDER BY sort_order ASC, id ASC
+    `
+  );
+
+  contactRoleOptionsCache = rows.map((row) => ({ id: row.id, name: row.name }));
+}
+
+function getContactRoleOptions() {
+  return contactRoleOptionsCache;
+}
+
+function normalizeBitrixWebhookRoot(input) {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    throw new Error("Debes indicar la URL del webhook de Bitrix");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (_error) {
+    throw new Error("La URL del webhook de Bitrix es inválida");
+  }
+
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error("La URL del webhook debe usar http o https");
+  }
+
+  if (!parsed.hostname.toLowerCase().includes("bitrix")) {
+    throw new Error("La URL no parece pertenecer a Bitrix");
+  }
+
+  const pathSegments = parsed.pathname.split("/").filter(Boolean);
+  const restIndex = pathSegments.findIndex((segment) => segment === "rest");
+
+  if (restIndex === -1 || pathSegments.length < restIndex + 3) {
+    throw new Error("La URL del webhook no tiene el formato esperado de Bitrix");
+  }
+
+  const rootSegments = pathSegments.slice(0, restIndex + 3);
+  parsed.pathname = `/${rootSegments.join("/")}/`;
+  parsed.search = "";
+  parsed.hash = "";
+
+  return parsed.toString();
+}
+
+function buildBitrixMethodUrl(bitrixRoot, method) {
+  return `${String(bitrixRoot || "").replace(/\/+$/, "")}/${method}.json`;
+}
+
+function appendBitrixParams(searchParams, key, value) {
+  if (value === undefined || value === null || value === "") return;
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => {
+      appendBitrixParams(searchParams, `${key}[]`, item);
+    });
+    return;
+  }
+
+  if (typeof value === "object") {
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      appendBitrixParams(searchParams, `${key}[${childKey}]`, childValue);
+    });
+    return;
+  }
+
+  searchParams.append(key, String(value));
+}
+
+async function callBitrixMethod(bitrixRoot, method, payload = {}) {
+  const url = buildBitrixMethodUrl(bitrixRoot, method);
+  const formData = new URLSearchParams();
+
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    appendBitrixParams(formData, key, value);
+  });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    },
+    body: formData.toString()
+  });
+
+  const rawBody = await response.text();
+  let data = null;
+  try {
+    data = rawBody ? JSON.parse(rawBody) : null;
+  } catch (_error) {
+    data = null;
+  }
+
+  if (!response.ok || data?.error) {
+    const error = new Error(
+      data?.error_description || data?.error || `Bitrix respondió con error ${response.status}`
+    );
+    error.status = response.status || 502;
+    error.code = data?.error || "";
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchBitrixCollection(bitrixRoot, method, payload = {}, maxPages = 20) {
+  const items = [];
+  let next = 0;
+  let guard = 0;
+
+  while (guard < maxPages) {
+    const data = await callBitrixMethod(bitrixRoot, method, {
+      ...payload,
+      start: next
+    });
+
+    const batch = Array.isArray(data?.result) ? data.result : [];
+    items.push(...batch);
+
+    if (data?.next === undefined || data?.next === null) {
+      break;
+    }
+
+    next = Number(data.next);
+    if (!Number.isFinite(next) || next <= 0) {
+      break;
+    }
+
+    guard += 1;
+  }
+
+  return items;
+}
+
+function mapBitrixUser(user) {
+  const activeRaw = user.ACTIVE;
+  const isActive =
+    activeRaw === true ||
+    activeRaw === 1 ||
+    String(activeRaw || "")
+      .trim()
+      .toUpperCase() === "Y" ||
+    String(activeRaw || "")
+      .trim()
+      .toLowerCase() === "true";
+
+  return {
+    id: user.ID || user.id || "",
+    name: user.NAME || "",
+    lastName: user.LAST_NAME || "",
+    email: user.EMAIL || "",
+    active: isActive,
+    admin: String(user.IS_ADMIN || "").toUpperCase() === "Y",
+    workPosition: user.WORK_POSITION || "",
+    fullName: [user.NAME, user.LAST_NAME].filter(Boolean).join(" ").trim() || user.EMAIL || `Usuario ${user.ID || ""}`
+  };
+}
+
+async function fetchBitrixUsers(bitrixRoot) {
+  const users = await fetchBitrixCollection(bitrixRoot, "user.search", {
+    FILTER: { ACTIVE: true }
+  });
+
+  return users.map(mapBitrixUser);
+}
+
+function mapBitrixCompany(company) {
+  return {
+    id: company.ID || "",
+    title: company.TITLE || company.COMPANY_TITLE || `Compañía ${company.ID || ""}`,
+    assignedById: company.ASSIGNED_BY_ID || "",
+    companyType: company.COMPANY_TYPE || ""
+  };
+}
+
+async function fetchBitrixCompanies(bitrixRoot) {
+  const companies = await fetchBitrixCollection(bitrixRoot, "crm.company.list", {
+    order: { ID: "ASC" },
+    select: ["ID", "TITLE", "ASSIGNED_BY_ID", "COMPANY_TYPE"]
+  });
+
+  return companies.map(mapBitrixCompany);
+}
+
+async function searchBitrixCompanies(bitrixRoot, searchTerm) {
+  const normalizedSearchTerm = String(searchTerm || "").trim();
+  if (!normalizedSearchTerm) return [];
+
+  const companies = await fetchBitrixCollection(
+    bitrixRoot,
+    "crm.company.list",
+    {
+      order: { TITLE: "ASC" },
+      select: ["ID", "TITLE", "ASSIGNED_BY_ID", "COMPANY_TYPE"],
+      filter: {
+        "%TITLE": normalizedSearchTerm
+      }
+    },
+    1
+  );
+
+  return companies.map(mapBitrixCompany);
+}
+
+function formatBitrixDirectoryError(error, resourceLabel) {
+  if (!error) {
+    return `No se pudieron cargar ${resourceLabel} de Bitrix.`;
+  }
+
+  if (String(error.code || "").trim() === "insufficient_scope") {
+    return `El webhook actual no tiene permisos para leer ${resourceLabel} de Bitrix.`;
+  }
+
+  return error.message || `No se pudieron cargar ${resourceLabel} de Bitrix.`;
+}
+
+async function getBitrixDirectoryOptions() {
+  const webhookUrl = await getAppSetting("bitrix_webhook_url", "");
+  if (!webhookUrl) {
+    return {
+      users: [],
+      companies: [],
+      permissions: {
+        users: false,
+        companies: false
+      },
+      errors: {
+        users: "No hay webhook de Bitrix configurado.",
+        companies: "No hay webhook de Bitrix configurado."
+      }
+    };
+  }
+
+  const bitrixRoot = normalizeBitrixWebhookRoot(webhookUrl);
+  const [usersResult, companiesResult] = await Promise.all([
+    fetchBitrixUsers(bitrixRoot).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
+    fetchBitrixCompanies(bitrixRoot).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error }))
+  ]);
+
+  return {
+    users: (usersResult.ok ? usersResult.value : [])
+      .filter((user) => Boolean(user.active))
+      .map((user) => ({
+        id: String(user.id || ""),
+        label: `${user.fullName}${user.email ? ` · ${user.email}` : ""}${user.id ? ` · ${user.id}` : ""}`.trim(),
+        name: user.fullName,
+        email: user.email || ""
+      })),
+    companies: (companiesResult.ok ? companiesResult.value : []).map((company) => ({
+      id: String(company.id || ""),
+      label: `${company.title}${company.id ? ` · ${company.id}` : ""}`.trim(),
+      title: company.title
+    })),
+    permissions: {
+      users: usersResult.ok,
+      companies: companiesResult.ok
+    },
+    errors: {
+      users: usersResult.ok ? "" : formatBitrixDirectoryError(usersResult.error, "usuarios"),
+      companies: companiesResult.ok ? "" : formatBitrixDirectoryError(companiesResult.error, "compañías")
+    }
+  };
+}
+
+function mapBitrixLead(lead) {
+  return {
+    id: lead.ID || "",
+    title: lead.TITLE || `Lead ${lead.ID || ""}`,
+    assignedById: lead.ASSIGNED_BY_ID || "",
+    statusId: lead.STATUS_ID || ""
+  };
+}
+
+async function fetchBitrixLeads(bitrixRoot) {
+  const leads = await fetchBitrixCollection(bitrixRoot, "crm.lead.list", {
+    order: { ID: "ASC" },
+    select: ["ID", "TITLE", "ASSIGNED_BY_ID", "STATUS_ID"]
+  });
+
+  return leads.map(mapBitrixLead);
+}
+
+async function buildBitrixMappings(bitrixRoot) {
+  const [bitrixUsersResult, bitrixCompaniesResult, bitrixLeadsResult, usersResult, clientsResult] = await Promise.all([
+    fetchBitrixUsers(bitrixRoot).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
+    fetchBitrixCompanies(bitrixRoot).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
+    fetchBitrixLeads(bitrixRoot).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
+    query("SELECT id, name, email, role, bitrix_user_id FROM users ORDER BY name ASC, id ASC"),
+    query(
+      `
+      SELECT id, name, bitrix_company_id, bitrix_lead_id
+      FROM clients
+      WHERE is_hidden = FALSE
+      ORDER BY name ASC, id ASC
+      `
+    )
+  ]);
+
+  if (!bitrixUsersResult.ok) {
+    throw bitrixUsersResult.error;
+  }
+
+  const bitrixUsers = bitrixUsersResult.value;
+  const bitrixCompanies = bitrixCompaniesResult.ok ? bitrixCompaniesResult.value : [];
+  const bitrixLeads = bitrixLeadsResult.ok ? bitrixLeadsResult.value : [];
+  const bitrixUsersById = new Map(bitrixUsers.map((user) => [String(user.id), user]));
+  const bitrixCompaniesById = new Map(bitrixCompanies.map((company) => [String(company.id), company]));
+  const bitrixLeadsById = new Map(bitrixLeads.map((lead) => [String(lead.id), lead]));
+
+  return {
+    bitrixUsers,
+    bitrixCompanies,
+    userMappings: usersResult.rows.map((row) => {
+      const bitrixUserId = String(row.bitrix_user_id || "").trim();
+      const bitrixUser = bitrixUserId ? bitrixUsersById.get(bitrixUserId) || null : null;
+
+      return {
+        appUser: sanitizeUser(row),
+        localBitrixUserId: bitrixUserId,
+        bitrixUser,
+        status: bitrixUserId ? (bitrixUser ? "mapped" : "missing") : "unmapped"
+      };
+    }),
+    clientMappings: clientsResult.rows.map((row) => {
+      const bitrixCompanyId = String(row.bitrix_company_id || "").trim();
+      const bitrixLeadId = String(row.bitrix_lead_id || "").trim();
+      const company = bitrixCompanyId ? bitrixCompaniesById.get(bitrixCompanyId) || null : null;
+      const lead = bitrixLeadId ? bitrixLeadsById.get(bitrixLeadId) || null : null;
+
+      return {
+        clientId: row.id,
+        clientName: row.name,
+        bitrixCompanyId,
+        bitrixLeadId,
+        matchedEntity: company || lead,
+        matchedEntityType: company ? "company" : lead ? "lead" : "",
+        status:
+          bitrixCompaniesResult.ok || bitrixLeadsResult.ok
+            ? bitrixCompanyId || bitrixLeadId
+              ? company || lead
+                ? "mapped"
+                : "missing"
+              : "unmapped"
+            : "scope_missing"
+      };
+    }),
+    counts: {
+      localUsers: usersResult.rows.length,
+      localClients: clientsResult.rows.length,
+      bitrixUsers: bitrixUsers.length,
+      bitrixCompanies: bitrixCompanies.length,
+      bitrixLeads: bitrixLeads.length
+    },
+    permissions: {
+      users: bitrixUsersResult.ok,
+      companies: bitrixCompaniesResult.ok,
+      leads: bitrixLeadsResult.ok
+    },
+    errors: {
+      companies: bitrixCompaniesResult.ok ? "" : bitrixCompaniesResult.error?.message || "",
+      leads: bitrixLeadsResult.ok ? "" : bitrixLeadsResult.error?.message || ""
+    }
+  };
+}
+
+function formatBitrixDeadline(daysFromNow = 7) {
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + Number(daysFromNow || 0));
+  deadline.setHours(23, 59, 0, 0);
+
+  const year = deadline.getFullYear();
+  const month = String(deadline.getMonth() + 1).padStart(2, "0");
+  const day = String(deadline.getDate()).padStart(2, "0");
+  const hours = String(deadline.getHours()).padStart(2, "0");
+  const minutes = String(deadline.getMinutes()).padStart(2, "0");
+  const offsetMinutes = -deadline.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absOffsetMinutes = Math.abs(offsetMinutes);
+  const offsetHours = String(Math.floor(absOffsetMinutes / 60)).padStart(2, "0");
+  const offsetRemainderMinutes = String(absOffsetMinutes % 60).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:00${sign}${offsetHours}:${offsetRemainderMinutes}`;
+}
+
+function buildComplaintBitrixTaskTitle(clientName, scheduledFor) {
+  return `Reclamo - ${String(clientName || "").trim()} - ${String(scheduledFor || "").trim()}`;
+}
+
+async function createBitrixTask(bitrixRoot, { title, description, responsibleId, groupId, deadline, createdById = "" }) {
+  const fields = {
+    TITLE: title,
+    DESCRIPTION: description,
+    RESPONSIBLE_ID: responsibleId,
+    GROUP_ID: groupId,
+    DEADLINE: deadline
+  };
+
+  if (String(createdById || "").trim()) {
+    fields.CREATED_BY = String(createdById || "").trim();
+  }
+
+  const data = await callBitrixMethod(bitrixRoot, "tasks.task.add", { fields });
+
+  return {
+    id: data?.result?.task?.id || data?.result?.id || null,
+    raw: data?.result || null
+  };
+}
+
+async function updateBitrixTask(bitrixRoot, { taskId, title, description, responsibleId, groupId, deadline }) {
+  const data = await callBitrixMethod(bitrixRoot, "tasks.task.update", {
+    taskId,
+    fields: {
+      TITLE: title,
+      DESCRIPTION: description,
+      RESPONSIBLE_ID: responsibleId,
+      GROUP_ID: groupId,
+      DEADLINE: deadline
+    }
+  });
+
+  return {
+    id: String(taskId || ""),
+    raw: data?.result || null
+  };
+}
+
+async function getAppSetting(key, fallback = "") {
+  const { rows } = await query("SELECT value FROM app_settings WHERE key = $1 LIMIT 1", [String(key || "").trim()]);
+  if (!rows[0]) return fallback;
+  return String(rows[0].value || "");
+}
+
+function parseAppSettingBoolean(value, fallback = true) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "si", "sí", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+async function isVisitRulesFeatureEnabled() {
+  const rawValue = await getAppSetting(VISIT_RULES_FEATURE_SETTING_KEY, "true");
+  return parseAppSettingBoolean(rawValue, true);
+}
+
+async function setAppSetting(key, value) {
+  await query(
+    `
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES ($1, $2, NOW())
+    ON CONFLICT (key)
+    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `,
+    [String(key || "").trim(), String(value || "")]
+  );
+}
+
 function isValidMeetingReason(subject) {
   return getMeetingReasons().some((reason) => (typeof reason === "string" ? reason : reason.name) === subject);
 }
@@ -139,6 +624,7 @@ function validateUserPayload(payload, { requirePassword = true } = {}) {
   const email = String(payload?.email || "").trim().toLowerCase();
   const password = String(payload?.password || "");
   const role = String(payload?.role || "").trim();
+  const bitrixUserId = String(payload?.bitrixUserId || "").trim();
 
   if (!name) errors.push("El nombre es obligatorio");
   if (!email || !email.includes("@")) errors.push("El email es inválido");
@@ -150,7 +636,7 @@ function validateUserPayload(payload, { requirePassword = true } = {}) {
 
   return {
     errors,
-    values: { name, email, password, role }
+    values: { name, email, password, role, bitrixUserId }
   };
 }
 
@@ -190,6 +676,13 @@ async function requireSettingsAdmin(req, res, next) {
 
 function isExecutiveScopedUser(user) {
   return String(user?.role || "").trim() === EXECUTIVE_ROLE;
+}
+
+function normalizeOptionalIdFilter(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized === "todos") return null;
+  const numericValue = Number(normalized);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
 }
 
 async function getSessionUser(req) {
@@ -317,6 +810,8 @@ function toClientObject(row) {
     companyType: row.company_type || "Local",
     country: row.country || "Argentina",
     accountStage: row.account_stage || "Activa",
+    bitrixLeadId: row.bitrix_lead_id || "",
+    bitrixCompanyId: row.bitrix_company_id || "",
     manager: row.manager,
     executiveUserId: row.executive_user_id,
     executiveName: row.executive_name || row.manager,
@@ -364,6 +859,7 @@ function toBranchObject(row) {
     id: row.id,
     clientId: row.client_id,
     name: row.name,
+    bitrixCompanyId: row.bitrix_company_id || "",
     sector: row.sector,
     manager: row.manager,
     executiveUserId: row.parent_executive_user_id,
@@ -477,6 +973,8 @@ async function createClientRecord(payload) {
     companyType,
     country,
     accountStage,
+    bitrixLeadId,
+    bitrixCompanyId,
     executiveUserId,
     risk,
     segment,
@@ -496,10 +994,10 @@ async function createClientRecord(payload) {
     `
     INSERT INTO clients (
       position, name, billing_2025, sector, company_type, country, account_stage, manager, executive_user_id, risk, segment,
-      service_fixed_fire, service_extinguishers, service_works,
+      bitrix_lead_id, bitrix_company_id, service_fixed_fire, service_extinguishers, service_works,
       wallet_share, nps, open_opportunities, notes,
       supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
     RETURNING *
     `,
     [
@@ -514,6 +1012,8 @@ async function createClientRecord(payload) {
       Number(executiveUserId),
       risk,
       segment,
+      String(bitrixLeadId || "").trim(),
+      String(bitrixCompanyId || "").trim(),
       services.fixedFire,
       services.extinguishers,
       services.works,
@@ -535,11 +1035,11 @@ async function createUserRecord(payload) {
   const { values } = validateUserPayload(payload, { requirePassword: true });
   const result = await query(
     `
-    INSERT INTO users (name, email, password_hash, role)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, name, email, role, created_at
+    INSERT INTO users (name, email, password_hash, role, bitrix_user_id)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, name, email, role, bitrix_user_id, created_at
     `,
-    [values.name, values.email, hashPassword(values.password), values.role]
+    [values.name, values.email, hashPassword(values.password), values.role, values.bitrixUserId]
   );
 
   return {
@@ -577,10 +1077,18 @@ async function getSectorOptions() {
   }));
 }
 
+async function getContactRoleOptionByName(name) {
+  const normalizedName = String(name || "").trim();
+  if (!normalizedName) return null;
+
+  const { rows } = await query("SELECT id, name FROM contact_role_options WHERE lower(name) = lower($1) LIMIT 1", [normalizedName]);
+  return rows[0] || null;
+}
+
 async function getUserById(userId) {
   const { rows } = await query(
     `
-    SELECT id, name, email, role, created_at
+    SELECT id, name, email, role, bitrix_user_id, created_at
     FROM users
     WHERE id = $1
     `,
@@ -632,6 +1140,210 @@ async function getUserAssignments(userId) {
     asSupervisorExt: Number(row.supervisor_ext_user_id) === Number(userId),
     asSupervisorWorks: Number(row.supervisor_works_user_id) === Number(userId)
   }));
+}
+
+async function fetchVisitRules(entityType, entityId, db = { query }) {
+  const { rows } = await db.query(
+    `
+    SELECT id, entity_type, entity_id, periodicity_days, contact_role, objective, created_at, updated_at
+    FROM visit_rules
+    WHERE entity_type = $1 AND entity_id = $2
+    ORDER BY id ASC
+    `,
+    [entityType, entityId]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    periodicityDays: Number(row.periodicity_days || 0),
+    contactRole: row.contact_role || "",
+    objective: row.objective || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }));
+}
+
+async function replaceVisitRules(db, entityType, entityId, rules) {
+  await db.query("DELETE FROM visit_rules WHERE entity_type = $1 AND entity_id = $2", [entityType, entityId]);
+
+  for (const rule of rules) {
+    await db.query(
+      `
+      INSERT INTO visit_rules (entity_type, entity_id, periodicity_days, contact_role, objective, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      `,
+      [entityType, entityId, rule.periodicityDays, rule.contactRole, rule.objective]
+    );
+  }
+}
+
+function addDays(dateString, days) {
+  const base = dateString ? new Date(`${dateString}T00:00:00`) : new Date();
+  if (Number.isNaN(base.getTime())) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + days);
+    return fallback.toISOString().slice(0, 10);
+  }
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
+async function getAutomaticMeetingEntityContext(db, entityType, entityId) {
+  if (entityType === "client") {
+    const { rows } = await db.query(
+      `
+      SELECT id, executive_user_id
+      FROM clients
+      WHERE id = $1 AND is_hidden = FALSE
+      `,
+      [entityId]
+    );
+    const client = rows[0];
+    if (!client) return null;
+    return {
+      clientId: client.id,
+      branchId: null,
+      executiveUserId: client.executive_user_id || null
+    };
+  }
+
+  if (entityType === "branch") {
+    const { rows } = await db.query(
+      `
+      SELECT client_branches.id, client_branches.client_id, clients.executive_user_id
+      FROM client_branches
+      INNER JOIN clients ON clients.id = client_branches.client_id
+      WHERE client_branches.id = $1 AND clients.is_hidden = FALSE
+      `,
+      [entityId]
+    );
+    const branch = rows[0];
+    if (!branch) return null;
+    return {
+      clientId: branch.client_id,
+      branchId: branch.id,
+      executiveUserId: branch.executive_user_id || null
+    };
+  }
+
+  return null;
+}
+
+async function createAutomaticMeetingForRule(db, rule, baseDate) {
+  const context = await getAutomaticMeetingEntityContext(db, rule.entityType, rule.entityId);
+  if (!context?.clientId || !context.executiveUserId) return null;
+
+  const participantNames = await resolveParticipantNames([context.executiveUserId]);
+  const scheduledFor = addDays(baseDate, Number(rule.periodicityDays || 0));
+
+  const result = await db.query(
+    `
+    INSERT INTO meetings (
+      client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
+      contact_name, contact_role, modality, next_meeting_date, minutes, findings,
+      active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+      created_by, status, follow_up_from_meeting_id, is_automatic, automatic_rule_id, automatic_rule_entity_type, automatic_rule_entity_id,
+      created_at, updated_at
+    ) VALUES (
+      $1, $2, NULL, $3, $4, $5, $6, $7, $8,
+      $9, $10, $11, '', '', '',
+      '', '', '', '', '', '',
+      $12, $13, NULL, TRUE, $14, $15, $16,
+      NOW(), NOW()
+    )
+    RETURNING id
+    `,
+    [
+      context.clientId,
+      context.branchId,
+      "Comercial",
+      "Acercamiento al cliente",
+      rule.objective,
+      scheduledFor,
+      participantNames.join(", "),
+      [context.executiveUserId],
+      "",
+      rule.contactRole,
+      "Presencial",
+      "Regla automática",
+      MEETING_STATUS.SCHEDULED,
+      rule.id,
+      rule.entityType,
+      rule.entityId
+    ]
+  );
+
+  return result.rows[0]?.id || null;
+}
+
+async function syncAutomaticMeetingsForEntity(db, entityType, entityId) {
+  if (!(await isVisitRulesFeatureEnabled())) return;
+  const rules = await fetchVisitRules(entityType, entityId, db);
+  if (!rules.length) return;
+
+  for (const rule of rules) {
+    const existingPending = await db.query(
+      `
+      SELECT id
+      FROM meetings
+      WHERE automatic_rule_id = $1
+        AND COALESCE(is_deleted, FALSE) = FALSE
+        AND status = ANY($2::text[])
+      ORDER BY id ASC
+      LIMIT 1
+      `,
+      [rule.id, [MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED]]
+    );
+
+    if (!existingPending.rows[0]) {
+      await createAutomaticMeetingForRule(db, rule, new Date().toISOString().slice(0, 10));
+    }
+  }
+}
+
+async function regenerateAutomaticMeetingIfNeeded(db, meeting) {
+  if (!(await isVisitRulesFeatureEnabled())) return;
+  if (!meeting?.isAutomatic || meeting.status !== MEETING_STATUS.COMPLETED || !meeting.automaticRuleId) return;
+
+  const ruleResult = await db.query(
+    `
+    SELECT id, entity_type, entity_id, periodicity_days, contact_role, objective
+    FROM visit_rules
+    WHERE id = $1
+    `,
+    [meeting.automaticRuleId]
+  );
+  const row = ruleResult.rows[0];
+  if (!row) return;
+
+  const existingPending = await db.query(
+    `
+    SELECT id
+    FROM meetings
+    WHERE automatic_rule_id = $1
+      AND COALESCE(is_deleted, FALSE) = FALSE
+      AND status = ANY($2::text[])
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [row.id, [MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED]]
+  );
+  if (existingPending.rows[0]) return;
+
+  await createAutomaticMeetingForRule(
+    db,
+    {
+      id: row.id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      periodicityDays: row.periodicity_days,
+      contactRole: row.contact_role,
+      objective: row.objective
+    },
+    new Date().toISOString().slice(0, 10)
+  );
 }
 
 function validateRoleChangeAgainstAssignments(assignments, nextRole) {
@@ -691,7 +1403,13 @@ async function validateSectorExists(sectorName) {
 
 async function fetchClientBranches(clientId) {
   const { rows } = await query(buildBranchSelectQuery("WHERE client_branches.client_id = $1"), [clientId]);
-  return rows.map(toBranchObject);
+  const branches = rows.map(toBranchObject);
+  return Promise.all(
+    branches.map(async (branch) => ({
+      ...branch,
+      visitRules: await fetchVisitRules("branch", branch.id)
+    }))
+  );
 }
 
 async function withBillingRank(client) {
@@ -735,7 +1453,14 @@ function toMeetingObject(row) {
     opportunities: row.opportunities || "",
     substituteRecovery: row.substitute_recovery || "",
     globalContacts: row.global_contacts || "",
+    serviceHealthStatus: row.service_health_status || "",
     serviceStatus: row.service_status || "",
+    complaintBitrixResponsibleId: row.complaint_bitrix_responsible_id || "",
+    complaintBitrixTaskId: row.complaint_bitrix_task_id || "",
+    isAutomatic: !!row.is_automatic,
+    automaticRuleId: row.automatic_rule_id || null,
+    automaticRuleEntityType: row.automatic_rule_entity_type || "",
+    automaticRuleEntityId: row.automatic_rule_entity_id || null,
     createdBy: row.created_by,
     status: row.status,
     createdAt: row.created_at,
@@ -1147,7 +1872,8 @@ async function attachMeetingSummary(client) {
     `
     SELECT meetings.id, meetings.client_id, meetings.branch_id, meetings.opportunity_id, meetings.kind, meetings.subject, meetings.objective, meetings.scheduled_for, meetings.participants, meetings.participant_user_ids, meetings.contact_name, meetings.contact_role,
            meetings.modality, meetings.next_meeting_date, meetings.follow_up_from_meeting_id, meetings.minutes, meetings.findings,
-           meetings.active_negotiations_status, meetings.opportunities, meetings.substitute_recovery, meetings.global_contacts, meetings.service_status,
+           meetings.active_negotiations_status, meetings.opportunities, meetings.substitute_recovery, meetings.global_contacts, meetings.service_health_status, meetings.service_status,
+           meetings.complaint_bitrix_responsible_id, meetings.complaint_bitrix_task_id,
            meetings.created_by, meetings.status, meetings.created_at, meetings.updated_at,
            opportunities_table.title AS opportunity_title
     FROM meetings
@@ -1175,11 +1901,15 @@ async function attachMeetingSummary(client) {
 async function buildClientResponse(row, { includeCrm = true } = {}) {
   const ranked = await withBillingRank(toClientObject(row));
   const clientWithMeetings = await attachMeetingSummary(ranked);
+  const clientWithRules = {
+    ...clientWithMeetings,
+    visitRules: await fetchVisitRules("client", clientWithMeetings.id)
+  };
   const branches = await fetchClientBranches(clientWithMeetings.id);
 
   if (!includeCrm) {
     return {
-      ...clientWithMeetings,
+      ...clientWithRules,
       branches
     };
   }
@@ -1187,7 +1917,7 @@ async function buildClientResponse(row, { includeCrm = true } = {}) {
   const opportunities = await fetchOpportunities({ clientId: clientWithMeetings.id });
   const crmSummary = buildCrmSummary(opportunities);
   return {
-    ...clientWithMeetings,
+    ...clientWithRules,
     branches,
     opportunities,
     crmSummary,
@@ -1252,6 +1982,12 @@ async function validateAccountPayload(payload, { requireCommercialMetrics = fals
     }
   }
   if (typeof notes !== "string") errors.push("El campo notes debe ser texto");
+  if (payload?.bitrixLeadId !== undefined && typeof payload.bitrixLeadId !== "string") {
+    errors.push("El campo bitrixLeadId debe ser texto");
+  }
+  if (payload?.bitrixCompanyId !== undefined && typeof payload.bitrixCompanyId !== "string") {
+    errors.push("El campo bitrixCompanyId debe ser texto");
+  }
 
   if (requireExecutive) {
     const executiveError = await validateUserAssignment(executiveUserId, EXECUTIVE_ROLE, "El ejecutivo");
@@ -1295,6 +2031,41 @@ async function validateClientPayload(payload) {
 
 async function validateBranchPayload(payload) {
   return validateAccountPayload(payload, { requireCommercialMetrics: false, requireBilling: false, requireExecutive: false });
+}
+
+async function validateVisitRulesPayload(rules) {
+  if (rules === undefined) return [];
+  if (!Array.isArray(rules)) return ["Las reglas de visita son inválidas"];
+
+  const errors = [];
+  for (const rule of rules) {
+    const periodicityDays = Number(rule?.periodicityDays);
+    const contactRole = String(rule?.contactRole || "").trim();
+    const objective = String(rule?.objective || "").trim();
+
+    if (!Number.isInteger(periodicityDays) || periodicityDays <= 0) {
+      errors.push("La periodicidad de visita debe ser un número entero mayor a 0");
+      break;
+    }
+    if (!contactRole) {
+      errors.push("Debes indicar a quién ir a ver en cada regla");
+      break;
+    }
+    if (!getContactRoleOptions().some((role) => role.name === contactRole)) {
+      errors.push("La función del contacto definida en una regla es inválida");
+      break;
+    }
+    if (!objective) {
+      errors.push("Debes indicar el objetivo de cada regla");
+      break;
+    }
+    if (!VALID_VISIT_RULE_OBJECTIVES.has(objective)) {
+      errors.push("El objetivo de la regla es inválido");
+      break;
+    }
+  }
+
+  return errors;
 }
 
 async function validateParticipantUsers(participantUserIds) {
@@ -1469,10 +2240,23 @@ async function validateMeetingPayload(payload) {
   if (payload?.findings !== undefined && typeof payload.findings !== "string") {
     errors.push("Los hallazgos deben ser texto");
   }
-  for (const field of ["activeNegotiationsStatus", "opportunities", "substituteRecovery", "globalContacts", "serviceStatus"]) {
+  for (const field of ["activeNegotiationsStatus", "opportunities", "substituteRecovery", "globalContacts", "serviceHealthStatus", "serviceStatus"]) {
     if (payload?.[field] !== undefined && typeof payload[field] !== "string") {
       errors.push(`El campo ${field} debe ser texto`);
     }
+  }
+  if (payload?.complaintBitrixResponsibleId !== undefined && typeof payload.complaintBitrixResponsibleId !== "string") {
+    errors.push("El responsable Bitrix del reclamo es inválido");
+  }
+  if (
+    typeof payload?.complaintBitrixResponsibleId === "string" &&
+    payload.complaintBitrixResponsibleId.trim() &&
+    !VALID_BITRIX_COMPLAINT_RESPONSIBLE_IDS.has(payload.complaintBitrixResponsibleId.trim())
+  ) {
+    errors.push("El responsable Bitrix del reclamo es inválido");
+  }
+  if (String(payload?.serviceStatus || "").trim() && !String(payload?.complaintBitrixResponsibleId || "").trim()) {
+    errors.push("Debes seleccionar un responsable Bitrix para el reclamo");
   }
   if (payload?.status && !VALID_MEETING_STATUS.has(payload.status)) {
     errors.push("El estado de la reunión es inválido");
@@ -1524,7 +2308,10 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
     meeting.opportunities || "",
     meeting.substituteRecovery || "",
     meeting.globalContacts || "",
+    meeting.serviceHealthStatus || "",
     meeting.serviceStatus || "",
+    meeting.complaintBitrixResponsibleId || "",
+    meeting.complaintBitrixTaskId || "",
     String(createdBy || "").trim(),
     MEETING_STATUS.SCHEDULED,
     meeting.id
@@ -1553,13 +2340,16 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
         opportunities = $16,
         substitute_recovery = $17,
         global_contacts = $18,
-        service_status = $19,
-        created_by = $20,
-        status = $21,
+        service_health_status = $19,
+        service_status = $20,
+        complaint_bitrix_responsible_id = $21,
+        complaint_bitrix_task_id = $22,
+        created_by = $23,
+        status = $24,
         updated_at = NOW()
-      WHERE id = $22
+      WHERE id = $25
       `,
-      [...followUpValues.slice(0, 21), existingFollowUp.id]
+      [...followUpValues.slice(0, 24), existingFollowUp.id]
     );
     return;
   }
@@ -1569,12 +2359,76 @@ async function upsertMeetingFollowUp(client, meeting, createdBy) {
     INSERT INTO meetings (
       client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
       contact_name, contact_role, modality, minutes, findings,
-      active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-      created_by, status, follow_up_from_meeting_id, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW())
+      active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+      complaint_bitrix_responsible_id, complaint_bitrix_task_id, created_by, status, follow_up_from_meeting_id, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW())
     `,
     followUpValues
   );
+}
+
+async function syncComplaintBitrixTask({ clientId, scheduledFor, serviceStatus, complaintBitrixResponsibleId, complaintBitrixTaskId }) {
+  const complaintText = String(serviceStatus || "").trim();
+  const responsibleId = String(complaintBitrixResponsibleId || "").trim();
+  const existingTaskId = String(complaintBitrixTaskId || "").trim();
+
+  if (!complaintText) {
+    return { taskId: existingTaskId };
+  }
+
+  if (!responsibleId) {
+    throw new Error("Debes seleccionar un responsable Bitrix para el reclamo");
+  }
+
+  const webhookUrl = await getAppSetting("bitrix_webhook_url", "");
+  if (!webhookUrl) {
+    throw new Error("No hay un webhook de Bitrix configurado para generar reclamos");
+  }
+
+  const bitrixRoot = normalizeBitrixWebhookRoot(webhookUrl);
+  const clientResult = await query(
+    `
+    SELECT
+      clients.name,
+      clients.executive_user_id,
+      executive_user.bitrix_user_id AS executive_bitrix_user_id
+    FROM clients
+    LEFT JOIN users AS executive_user ON executive_user.id = clients.executive_user_id
+    WHERE clients.id = $1
+    LIMIT 1
+    `,
+    [clientId]
+  );
+  const client = clientResult.rows[0];
+  if (!client) {
+    throw new Error("No se pudo identificar la compañía para generar el reclamo en Bitrix");
+  }
+
+  const executiveBitrixUserId = String(client.executive_bitrix_user_id || "").trim();
+
+  const taskPayload = {
+    title: buildComplaintBitrixTaskTitle(client.name, scheduledFor),
+    description: complaintText,
+    responsibleId,
+    groupId: BITRIX_COMPLAINT_GROUP_ID,
+    deadline: formatBitrixDeadline(7),
+    createdById: executiveBitrixUserId
+  };
+
+  if (existingTaskId) {
+    await updateBitrixTask(bitrixRoot, {
+      taskId: existingTaskId,
+      ...taskPayload
+    });
+    return { taskId: existingTaskId };
+  }
+
+  const createdTask = await createBitrixTask(bitrixRoot, taskPayload);
+  if (!createdTask.id) {
+    throw new Error("Bitrix no devolvió el identificador de la tarea de reclamo");
+  }
+
+  return { taskId: String(createdTask.id) };
 }
 
 app.get("/api/health", (_req, res) => {
@@ -1605,10 +2459,15 @@ app.get(
       return;
     }
 
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
+
     res.json({
       user: {
         ...sanitizeUser(user),
         canManageSettings: isSettingsAdminUser(user)
+      },
+      featureFlags: {
+        visitRulesEnabled
       }
     });
   })
@@ -1619,6 +2478,7 @@ app.post(
   asyncHandler(async (req, res) => {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = String(req.body?.password || "");
+    const rememberMe = Boolean(req.body?.rememberMe);
 
     if (!email || !password) {
       res.status(400).json({ error: "Email y contraseña son obligatorios" });
@@ -1634,6 +2494,12 @@ app.post(
     }
 
     req.session.userId = user.id;
+    if (rememberMe) {
+      req.session.cookie.maxAge = REMEMBER_ME_COOKIE_MAX_AGE_MS;
+    } else {
+      req.session.cookie.expires = false;
+      req.session.cookie.maxAge = null;
+    }
     await logAuditEvent({
       user,
       action: "auth.login",
@@ -1641,10 +2507,15 @@ app.post(
       entityId: user.id,
       entityName: user.email
     });
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
+
     res.json({
       user: {
         ...sanitizeUser(user),
         canManageSettings: isSettingsAdminUser(user)
+      },
+      featureFlags: {
+        visitRulesEnabled
       }
     });
   })
@@ -1673,6 +2544,7 @@ app.get("/api/meeting-types", (_req, res) => {
   res.json({
     meetingTypes: getMeetingTypes(),
     meetingReasons: getMeetingReasons(),
+    contactRoles: getContactRoleOptions(),
     statuses: Object.values(MEETING_STATUS),
     modalities: MEETING_MODALITIES
   });
@@ -1680,6 +2552,55 @@ app.get("/api/meeting-types", (_req, res) => {
 
 app.use("/api", requireAuth);
 app.use("/api/settings", requireSettingsAdmin);
+
+app.get(
+  "/api/bitrix/options",
+  asyncHandler(async (_req, res) => {
+    const directory = await getBitrixDirectoryOptions();
+    res.json(directory);
+  })
+);
+
+app.get(
+  "/api/bitrix/companies-search",
+  asyncHandler(async (req, res) => {
+    const queryText = String(req.query?.q || "").trim();
+    if (!queryText) {
+      res.json({ companies: [] });
+      return;
+    }
+
+    const webhookUrl = await getAppSetting("bitrix_webhook_url", "");
+    if (!webhookUrl) {
+      res.json({
+        companies: [],
+        permissions: { companies: false },
+        errors: { companies: "No hay webhook de Bitrix configurado." }
+      });
+      return;
+    }
+
+    const bitrixRoot = normalizeBitrixWebhookRoot(webhookUrl);
+    try {
+      const companies = await searchBitrixCompanies(bitrixRoot, queryText);
+      res.json({
+        companies: companies.map((company) => ({
+          id: String(company.id || ""),
+          label: `${company.title}${company.id ? ` · ${company.id}` : ""}`.trim(),
+          title: company.title
+        })),
+        permissions: { companies: true },
+        errors: { companies: "" }
+      });
+    } catch (error) {
+      res.json({
+        companies: [],
+        permissions: { companies: false },
+        errors: { companies: formatBitrixDirectoryError(error, "compañías") }
+      });
+    }
+  })
+);
 
 app.get(
   "/api/crm/catalogs",
@@ -1771,6 +2692,36 @@ app.get(
   })
 );
 
+app.get(
+  "/api/settings/branches-import-template",
+  asyncHandler(async (_req, res) => {
+    const rows = [
+      {
+        clientName: "Cliente Ejemplo",
+        branchName: "Planta Córdoba",
+        sector: "Energía",
+        risk: "Medio",
+        segment: "B",
+        fixedFire: "No",
+        extinguishers: "Si",
+        works: "No",
+        supervisorIfci: "",
+        supervisorExt: "ext@maxi.local",
+        supervisorWorks: "",
+        notes: "Sucursal importada desde Excel"
+      }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sucursales");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="plantilla-sucursales.xlsx"');
+    res.send(buffer);
+  })
+);
+
 app.post(
   "/api/settings/clients-import",
   asyncHandler(async (req, res) => {
@@ -1852,6 +2803,158 @@ app.post(
       }
 
       await createClientRecord(payload);
+      createdCount += 1;
+    }
+
+    res.json({
+      createdCount,
+      errorCount: errors.length,
+      errors
+    });
+  })
+);
+
+app.post(
+  "/api/settings/branches-import",
+  asyncHandler(async (req, res) => {
+    const fileData = String(req.body?.fileData || "").trim();
+    if (!fileData) {
+      res.status(400).json({ error: "Debes adjuntar un archivo Excel" });
+      return;
+    }
+
+    const workbook = XLSX.read(Buffer.from(fileData, "base64"), { type: "buffer" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    if (!rows.length) {
+      res.status(400).json({ error: "El archivo no tiene filas para importar" });
+      return;
+    }
+
+    let createdCount = 0;
+    const errors = [];
+
+    for (const [index, row] of rows.entries()) {
+      const line = index + 2;
+      const clientName = String(row.clientName || "").trim();
+      const branchName = String(row.branchName || "").trim();
+
+      if (!clientName) {
+        errors.push(`Fila ${line}: debés indicar la compañía en "clientName"`);
+        continue;
+      }
+
+      const clientResult = await query(
+        `
+        SELECT id, manager, billing_2025, executive_user_id
+        FROM clients
+        WHERE lower(name) = lower($1)
+        LIMIT 1
+        `,
+        [clientName]
+      );
+      const client = clientResult.rows[0];
+      if (!client) {
+        errors.push(`Fila ${line}: no existe una compañía llamada "${clientName}"`);
+        continue;
+      }
+
+      const services = {
+        fixedFire: parseBooleanCell(row.fixedFire),
+        extinguishers: parseBooleanCell(row.extinguishers),
+        works: parseBooleanCell(row.works)
+      };
+
+      const supervisors = {
+        fixedFire: { userId: null },
+        extinguishers: { userId: null },
+        works: { userId: null }
+      };
+
+      if (services.fixedFire) {
+        const supervisor = await findUserByEmailOrName(row.supervisorIfci, USER_ROLES.SUPERVISOR_IFCI);
+        supervisors.fixedFire.userId = supervisor?.id || null;
+      }
+      if (services.extinguishers) {
+        const supervisor = await findUserByEmailOrName(row.supervisorExt, USER_ROLES.SUPERVISOR_EXT);
+        supervisors.extinguishers.userId = supervisor?.id || null;
+      }
+      if (services.works) {
+        const supervisor = await findUserByEmailOrName(row.supervisorWorks, USER_ROLES.SUPERVISOR_WORKS);
+        supervisors.works.userId = supervisor?.id || null;
+      }
+
+      const payload = {
+        name: branchName,
+        sector: String(row.sector || "").trim(),
+        risk: String(row.risk || "Bajo").trim() || "Bajo",
+        segment: String(row.segment || "C").trim() || "C",
+        services,
+        supervisors,
+        notes: String(row.notes || "").trim()
+      };
+
+      const duplicateResult = await query(
+        `
+        SELECT id
+        FROM client_branches
+        WHERE client_id = $1 AND lower(name) = lower($2)
+        LIMIT 1
+        `,
+        [client.id, payload.name]
+      );
+      if (duplicateResult.rows[0]) {
+        errors.push(`Fila ${line}: ya existe la sucursal "${payload.name}" para "${clientName}"`);
+        continue;
+      }
+
+      const validationErrors = await validateBranchPayload(payload);
+      if (validationErrors.length) {
+        errors.push(`Fila ${line}: ${validationErrors[0]}`);
+        continue;
+      }
+
+      const fixedFireSupervisorId = services.fixedFire ? normalizeNullableUserId(supervisors.fixedFire.userId) : null;
+      const extinguishersSupervisorId = services.extinguishers ? normalizeNullableUserId(supervisors.extinguishers.userId) : null;
+      const worksSupervisorId = services.works ? normalizeNullableUserId(supervisors.works.userId) : null;
+
+      const result = await query(
+        `
+        INSERT INTO client_branches (
+          client_id, name, billing_2025, sector, manager, executive_user_id, risk, segment,
+          service_fixed_fire, service_extinguishers, service_works, notes,
+          supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id,
+          created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+        RETURNING id
+        `,
+        [
+          client.id,
+          payload.name.trim(),
+          Number(client.billing_2025 || 0),
+          payload.sector.trim(),
+          String(client.manager || "").trim(),
+          client.executive_user_id || null,
+          payload.risk,
+          payload.segment,
+          services.fixedFire,
+          services.extinguishers,
+          services.works,
+          payload.notes.trim(),
+          fixedFireSupervisorId,
+          extinguishersSupervisorId,
+          worksSupervisorId
+        ]
+      );
+
+      await logAuditEvent({
+        req,
+        action: "branch.create",
+        entityType: "branch",
+        entityId: result.rows[0].id,
+        entityName: payload.name,
+        details: { clientId: client.id, imported: true }
+      });
       createdCount += 1;
     }
 
@@ -2139,6 +3242,144 @@ app.delete(
   })
 );
 
+app.get(
+  "/api/settings/contact-roles",
+  asyncHandler(async (_req, res) => {
+    res.json({ contactRoles: getContactRoleOptions() });
+  })
+);
+
+app.post(
+  "/api/settings/contact-roles",
+  asyncHandler(async (req, res) => {
+    const name = String(req.body?.name || "").trim();
+    if (!name) {
+      res.status(400).json({ error: "La función del contacto es obligatoria" });
+      return;
+    }
+
+    await query(
+      `
+      INSERT INTO contact_role_options (name, sort_order)
+      VALUES ($1, COALESCE((SELECT MAX(sort_order) FROM contact_role_options), 0) + 1)
+      `,
+      [name]
+    );
+
+    await logAuditEvent({
+      req,
+      action: "settings.contact_role.create",
+      entityType: "contact_role",
+      entityName: name
+    });
+    await refreshContactRoleOptionsCache();
+    res.status(201).json({ contactRoles: getContactRoleOptions() });
+  })
+);
+
+app.patch(
+  "/api/settings/contact-roles/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const name = String(req.body?.name || "").trim();
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Función de contacto inválida" });
+      return;
+    }
+    if (!name) {
+      res.status(400).json({ error: "La función del contacto es obligatoria" });
+      return;
+    }
+
+    const existingResult = await query("SELECT id, name FROM contact_role_options WHERE id = $1", [id]);
+    const existing = existingResult.rows[0];
+    if (!existing) {
+      res.status(404).json({ error: "Función de contacto no encontrada" });
+      return;
+    }
+
+    await withTransaction(async (client) => {
+      await client.query(
+        `
+        UPDATE contact_role_options
+        SET name = $1
+        WHERE id = $2
+        `,
+        [name, id]
+      );
+
+      if (String(existing.name).trim().toLowerCase() !== name.toLowerCase()) {
+        await client.query(
+          `
+          UPDATE meetings
+          SET contact_role = $1
+          WHERE lower(contact_role) = lower($2)
+          `,
+          [name, existing.name]
+        );
+        await client.query(
+          `
+          UPDATE visit_rules
+          SET contact_role = $1, updated_at = NOW()
+          WHERE lower(contact_role) = lower($2)
+          `,
+          [name, existing.name]
+        );
+      }
+    });
+
+    await logAuditEvent({
+      req,
+      action: "settings.contact_role.update",
+      entityType: "contact_role",
+      entityId: id,
+      entityName: name
+    });
+    await refreshContactRoleOptionsCache();
+    res.json({ contactRoles: getContactRoleOptions() });
+  })
+);
+
+app.delete(
+  "/api/settings/contact-roles/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Función de contacto inválida" });
+      return;
+    }
+
+    const existing = getContactRoleOptions().find((role) => Number(role.id) === id);
+    if (!existing) {
+      res.status(404).json({ error: "Función de contacto no encontrada" });
+      return;
+    }
+
+    const usage = await query("SELECT id FROM meetings WHERE lower(contact_role) = lower($1) LIMIT 1", [existing.name]);
+    if (usage.rows[0]) {
+      res.status(409).json({ error: "No se puede eliminar una función del contacto que ya está en uso" });
+      return;
+    }
+
+    const rulesUsage = await query("SELECT id FROM visit_rules WHERE lower(contact_role) = lower($1) LIMIT 1", [existing.name]);
+    if (rulesUsage.rows[0]) {
+      res.status(409).json({ error: "No se puede eliminar una función del contacto que ya está asignada a reglas" });
+      return;
+    }
+
+    await query("DELETE FROM contact_role_options WHERE id = $1", [id]);
+    await logAuditEvent({
+      req,
+      action: "settings.contact_role.delete",
+      entityType: "contact_role",
+      entityId: id,
+      entityName: existing.name
+    });
+    await refreshContactRoleOptionsCache();
+    res.json({ contactRoles: getContactRoleOptions() });
+  })
+);
+
 app.post(
   "/api/settings/sectors",
   asyncHandler(async (req, res) => {
@@ -2336,12 +3577,151 @@ app.get(
 );
 
 app.get(
+  "/api/settings/bitrix/config",
+  asyncHandler(async (_req, res) => {
+    const webhookUrl = await getAppSetting("bitrix_webhook_url", "");
+    res.json({
+      webhookUrl
+    });
+  })
+);
+
+app.get(
+  "/api/settings/features",
+  asyncHandler(async (_req, res) => {
+    res.json({
+      featureFlags: {
+        visitRulesEnabled: await isVisitRulesFeatureEnabled()
+      }
+    });
+  })
+);
+
+app.patch(
+  "/api/settings/features",
+  asyncHandler(async (req, res) => {
+    const visitRulesEnabled = Boolean(req.body?.visitRulesEnabled);
+    await setAppSetting(VISIT_RULES_FEATURE_SETTING_KEY, visitRulesEnabled ? "true" : "false");
+
+    await logAuditEvent({
+      req,
+      action: "settings.features.update",
+      entityType: "settings",
+      entityName: "feature_flags",
+      details: { visitRulesEnabled }
+    });
+
+    res.json({
+      featureFlags: {
+        visitRulesEnabled
+      }
+    });
+  })
+);
+
+app.put(
+  "/api/settings/bitrix/config",
+  asyncHandler(async (req, res) => {
+    const normalizedWebhook = normalizeBitrixWebhookRoot(req.body?.webhookUrl);
+    await setAppSetting("bitrix_webhook_url", normalizedWebhook);
+
+    await logAuditEvent({
+      req,
+      action: "settings.bitrix.config.update",
+      entityType: "bitrix",
+      entityName: "webhook"
+    });
+
+    res.json({
+      webhookUrl: normalizedWebhook
+    });
+  })
+);
+
+app.post(
+  "/api/settings/bitrix/users-preview",
+  asyncHandler(async (req, res) => {
+    const bitrixRoot = normalizeBitrixWebhookRoot(req.body?.webhookUrl);
+    const users = await fetchBitrixUsers(bitrixRoot);
+
+    await logAuditEvent({
+      req,
+      action: "settings.bitrix.users_preview",
+      entityType: "bitrix",
+      entityName: "user.get",
+      details: { usersCount: users.length }
+    });
+
+    res.json({
+      users,
+      count: users.length
+    });
+  })
+);
+
+app.post(
+  "/api/settings/bitrix/mappings-preview",
+  asyncHandler(async (req, res) => {
+    const bitrixRoot = normalizeBitrixWebhookRoot(req.body?.webhookUrl);
+    const mappings = await buildBitrixMappings(bitrixRoot);
+
+    await logAuditEvent({
+      req,
+      action: "settings.bitrix.mappings_preview",
+      entityType: "bitrix",
+      entityName: "mappings",
+      details: mappings.counts
+    });
+
+    res.json(mappings);
+  })
+);
+
+app.post(
+  "/api/settings/bitrix/tasks-test",
+  asyncHandler(async (req, res) => {
+    const bitrixRoot = normalizeBitrixWebhookRoot(req.body?.webhookUrl);
+    const title = String(req.body?.title || "").trim();
+    const description = String(req.body?.description || "").trim();
+    const responsibleId = String(req.body?.responsibleId || "").trim();
+
+    if (!title) {
+      res.status(400).json({ error: "El título de la tarea es obligatorio" });
+      return;
+    }
+    if (!responsibleId) {
+      res.status(400).json({ error: "Debes indicar un responsable de Bitrix" });
+      return;
+    }
+
+    const createdTask = await createBitrixTask(bitrixRoot, {
+      title,
+      description,
+      responsibleId
+    });
+
+    await logAuditEvent({
+      req,
+      action: "settings.bitrix.task_test_create",
+      entityType: "bitrix_task",
+      entityId: createdTask.id,
+      entityName: title,
+      details: { responsibleId }
+    });
+
+    res.status(201).json({
+      task: createdTask
+    });
+  })
+);
+
+app.get(
   "/api/users",
   requireSettingsAdmin,
   asyncHandler(async (_req, res) => {
     const { rows } = await query(
       `
-      SELECT id, name, email, role, created_at
+      SELECT id, name, email, role, bitrix_user_id, created_at
       FROM users
       ORDER BY name ASC, id ASC
       `
@@ -2419,8 +3799,8 @@ app.patch(
       return;
     }
 
-    const updateFields = ["name = $1", "email = $2", "role = $3"];
-    const params = [values.name, values.email, values.role];
+    const updateFields = ["name = $1", "email = $2", "role = $3", "bitrix_user_id = $4"];
+    const params = [values.name, values.email, values.role, values.bitrixUserId];
 
     if (values.password) {
       updateFields.push(`password_hash = $${params.length + 1}`);
@@ -2436,7 +3816,7 @@ app.patch(
         UPDATE users
         SET ${updateFields.join(", ")}
         WHERE id = $${params.length}
-        RETURNING id, name, email, role, created_at
+        RETURNING id, name, email, role, bitrix_user_id, created_at
         `,
         params
       );
@@ -2806,8 +4186,11 @@ app.get(
       return;
     }
 
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
     const dateFrom = String(req.query.dateFrom || "").trim();
     const dateTo = String(req.query.dateTo || "").trim();
+    const requestedExecutiveUserId = normalizeOptionalIdFilter(req.query.executiveUserId);
+    const effectiveExecutiveUserId = isExecutiveScopedUser(currentUser) ? Number(currentUser.id) : requestedExecutiveUserId;
     const params = [];
     const dateConditions = ["COALESCE(meetings.is_deleted, FALSE) = FALSE"];
 
@@ -2821,21 +4204,20 @@ app.get(
       dateConditions.push(`meetings.scheduled_for <= $${params.length}`);
     }
 
-    const executiveScopeCondition = isExecutiveScopedUser(currentUser)
-      ? ` AND EXISTS (
-            SELECT 1
-            FROM clients AS scope_clients
-            WHERE scope_clients.id = meetings.client_id
-              AND scope_clients.executive_user_id = $${params.length + 1}
-              AND scope_clients.is_hidden = FALSE
-          )`
-      : "";
-
-    if (isExecutiveScopedUser(currentUser)) {
-      params.push(Number(currentUser.id));
+    if (effectiveExecutiveUserId) {
+      params.push(effectiveExecutiveUserId);
+      dateConditions.push(`
+        EXISTS (
+          SELECT 1
+          FROM clients AS scope_clients
+          WHERE scope_clients.id = meetings.client_id
+            AND scope_clients.executive_user_id = $${params.length}
+            AND scope_clients.is_hidden = FALSE
+        )
+      `);
     }
 
-    const meetingsJoinClause = `${dateConditions.join(" AND ")}${executiveScopeCondition}`;
+    const meetingsJoinClause = dateConditions.join(" AND ");
 
     const usersResult = await query(
       `
@@ -2876,8 +4258,138 @@ app.get(
       params
     );
 
+    let automaticTotal = 0;
+    let automaticCompleted = 0;
+    let totalRuleSemaphores = 0;
+    let whiteCount = 0;
+    let greenCount = 0;
+    let yellowCount = 0;
+    let redCount = 0;
+
+    if (visitRulesEnabled) {
+      const automaticRulesResult = await query(
+        `
+        SELECT
+          COUNT(meetings.id)::int AS total_count,
+          COUNT(meetings.id) FILTER (WHERE meetings.status = 'Realizada')::int AS completed_count
+        FROM meetings
+        WHERE ${meetingsJoinClause}
+          AND meetings.is_automatic = TRUE
+        `,
+        params
+      );
+      const automaticRuleSummary = automaticRulesResult.rows[0] || { total_count: 0, completed_count: 0 };
+      automaticTotal = Number(automaticRuleSummary.total_count || 0);
+      automaticCompleted = Number(automaticRuleSummary.completed_count || 0);
+
+      const ruleStatusParams = [];
+      const ruleStatusConditions = ["rule_context.client_is_hidden = FALSE"];
+      if (effectiveExecutiveUserId) {
+        ruleStatusParams.push(effectiveExecutiveUserId);
+        ruleStatusConditions.push(`rule_context.executive_user_id = $${ruleStatusParams.length}`);
+      }
+
+      const automaticRuleSemaphoresResult = await query(
+        `
+        WITH rule_context AS (
+          SELECT
+            visit_rules.id,
+            CASE
+              WHEN visit_rules.entity_type = 'client' THEN client_context.executive_user_id
+              WHEN visit_rules.entity_type = 'branch' THEN branch_client_context.executive_user_id
+              ELSE NULL
+            END AS executive_user_id,
+            CASE
+              WHEN visit_rules.entity_type = 'client' THEN COALESCE(client_context.is_hidden, TRUE)
+              WHEN visit_rules.entity_type = 'branch' THEN COALESCE(branch_client_context.is_hidden, TRUE)
+              ELSE TRUE
+            END AS client_is_hidden
+          FROM visit_rules
+          LEFT JOIN clients AS client_context
+            ON visit_rules.entity_type = 'client'
+           AND client_context.id = visit_rules.entity_id
+          LEFT JOIN client_branches AS branch_context
+            ON visit_rules.entity_type = 'branch'
+           AND branch_context.id = visit_rules.entity_id
+          LEFT JOIN clients AS branch_client_context
+            ON branch_client_context.id = branch_context.client_id
+        ),
+        rule_statuses AS (
+          SELECT
+            rule_context.id,
+            CASE
+              WHEN pending_meeting.scheduled_for IS NOT NULL
+                AND pending_meeting.scheduled_for < CURRENT_DATE - INTERVAL '10 days' THEN '${RULE_SEMAPHORE.RED}'
+              WHEN pending_meeting.scheduled_for IS NOT NULL
+                AND pending_meeting.scheduled_for < CURRENT_DATE THEN '${RULE_SEMAPHORE.YELLOW}'
+              WHEN completed_meeting.completed_meeting_id IS NOT NULL THEN '${RULE_SEMAPHORE.GREEN}'
+              ELSE '${RULE_SEMAPHORE.WHITE}'
+            END AS semaphore_status
+          FROM rule_context
+          LEFT JOIN LATERAL (
+            SELECT
+              meetings.id,
+              NULLIF(meetings.scheduled_for, '')::date AS scheduled_for
+            FROM meetings
+            WHERE meetings.automatic_rule_id = rule_context.id
+              AND COALESCE(meetings.is_deleted, FALSE) = FALSE
+              AND meetings.status = ANY($${ruleStatusParams.length + 1}::text[])
+            ORDER BY NULLIF(meetings.scheduled_for, '')::date ASC NULLS LAST, meetings.id ASC
+            LIMIT 1
+          ) AS pending_meeting ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT meetings.id AS completed_meeting_id
+            FROM meetings
+            WHERE meetings.automatic_rule_id = rule_context.id
+              AND COALESCE(meetings.is_deleted, FALSE) = FALSE
+              AND meetings.status = '${MEETING_STATUS.COMPLETED}'
+            ORDER BY NULLIF(meetings.scheduled_for, '')::date DESC NULLS LAST, meetings.id DESC
+            LIMIT 1
+          ) AS completed_meeting ON TRUE
+          WHERE ${ruleStatusConditions.join(" AND ")}
+        )
+        SELECT
+          COUNT(*)::int AS total_rules,
+          COUNT(*) FILTER (WHERE semaphore_status = '${RULE_SEMAPHORE.WHITE}')::int AS white_count,
+          COUNT(*) FILTER (WHERE semaphore_status = '${RULE_SEMAPHORE.GREEN}')::int AS green_count,
+          COUNT(*) FILTER (WHERE semaphore_status = '${RULE_SEMAPHORE.YELLOW}')::int AS yellow_count,
+          COUNT(*) FILTER (WHERE semaphore_status = '${RULE_SEMAPHORE.RED}')::int AS red_count
+        FROM rule_statuses
+        `,
+        [...ruleStatusParams, [MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED]]
+      );
+      const ruleSemaphoreSummary = automaticRuleSemaphoresResult.rows[0] || {
+        total_rules: 0,
+        white_count: 0,
+        green_count: 0,
+        yellow_count: 0,
+        red_count: 0
+      };
+      totalRuleSemaphores = Number(ruleSemaphoreSummary.total_rules || 0);
+      whiteCount = Number(ruleSemaphoreSummary.white_count || 0);
+      greenCount = Number(ruleSemaphoreSummary.green_count || 0);
+      yellowCount = Number(ruleSemaphoreSummary.yellow_count || 0);
+      redCount = Number(ruleSemaphoreSummary.red_count || 0);
+    }
+
     res.json({
       period: { dateFrom, dateTo },
+      byRule: {
+        totalCount: automaticTotal,
+        completedCount: automaticCompleted,
+        completionRate: automaticTotal > 0 ? (automaticCompleted / automaticTotal) * 100 : 0,
+        semaphores: {
+          totalRules: totalRuleSemaphores,
+          whiteCount,
+          greenCount,
+          yellowCount,
+          redCount,
+          whiteRate: totalRuleSemaphores > 0 ? (whiteCount / totalRuleSemaphores) * 100 : 0,
+          greenRate: totalRuleSemaphores > 0 ? (greenCount / totalRuleSemaphores) * 100 : 0,
+          yellowRate: totalRuleSemaphores > 0 ? (yellowCount / totalRuleSemaphores) * 100 : 0,
+          redRate: totalRuleSemaphores > 0 ? (redCount / totalRuleSemaphores) * 100 : 0
+        }
+      },
       byUser: usersResult.rows.map((row) => ({
         id: row.id,
         name: row.name,
@@ -2896,7 +4408,10 @@ app.get(
         confirmedCount: row.confirmed_count,
         completedCount: row.completed_count,
         totalCount: row.total_count
-      }))
+      })),
+      featureFlags: {
+        visitRulesEnabled
+      }
     });
   })
 );
@@ -2955,8 +4470,9 @@ app.patch(
       `
       SELECT id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
              modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
-             active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-             created_by, status, created_at, updated_at
+             active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+             complaint_bitrix_responsible_id, complaint_bitrix_task_id,
+             created_by, status, is_automatic, automatic_rule_id, automatic_rule_entity_type, automatic_rule_entity_id, created_at, updated_at
       FROM meetings
       WHERE id = $1
         AND COALESCE(is_deleted, FALSE) = FALSE
@@ -2981,14 +4497,16 @@ app.patch(
         WHERE id = $3
         RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
-                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-                  created_by, status, created_at, updated_at
+                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+                  complaint_bitrix_responsible_id, complaint_bitrix_task_id,
+                  created_by, status, is_automatic, automatic_rule_id, automatic_rule_entity_type, automatic_rule_entity_id, created_at, updated_at
         `,
         [status, nextMeetingDate, meetingId]
       );
 
       const meeting = toMeetingObject(result.rows[0]);
       await upsertMeetingFollowUp(client, meeting, meeting.createdBy || "");
+      await regenerateAutomaticMeetingIfNeeded(client, meeting);
       return meeting;
     });
 
@@ -3023,9 +4541,15 @@ app.post(
     }
 
     const payload = req.body || {};
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
     const errors = await validateClientPayload(payload);
+    const ruleErrors = visitRulesEnabled ? await validateVisitRulesPayload(payload.visitRules) : [];
     if (errors.length) {
       res.status(400).json({ error: errors[0] });
+      return;
+    }
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0] });
       return;
     }
 
@@ -3034,7 +4558,13 @@ app.post(
       return;
     }
 
-    const client = await createClientRecord(payload);
+    const created = await createClientRecord(payload);
+    if (visitRulesEnabled) {
+      await replaceVisitRules({ query }, "client", created.id, payload.visitRules || []);
+      await syncAutomaticMeetingsForEntity({ query }, "client", created.id);
+    }
+    const selectedCreated = await query(buildClientSelectQuery("WHERE clients.id = $1", ""), [created.id]);
+    const client = await buildClientResponse(selectedCreated.rows[0]);
     await logAuditEvent({
       req,
       action: "client.create",
@@ -3059,9 +4589,15 @@ app.patch(
     }
 
     const payload = req.body || {};
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
     const errors = await validateClientPayload(payload);
+    const ruleErrors = visitRulesEnabled ? await validateVisitRulesPayload(payload.visitRules) : [];
     if (errors.length) {
       res.status(400).json({ error: errors[0] });
+      return;
+    }
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0] });
       return;
     }
 
@@ -3077,6 +4613,8 @@ app.patch(
       companyType,
       country,
       accountStage,
+      bitrixLeadId,
+      bitrixCompanyId,
       executiveUserId,
       risk,
       segment,
@@ -3107,17 +4645,19 @@ app.patch(
         executive_user_id = $8,
         risk = $9,
         segment = $10,
-        service_fixed_fire = $11,
-        service_extinguishers = $12,
-        service_works = $13,
-        wallet_share = $14,
-        nps = $15,
-        open_opportunities = $16,
-        notes = $17,
-        supervisor_ifci_user_id = $18,
-        supervisor_ext_user_id = $19,
-        supervisor_works_user_id = $20
-      WHERE id = $21
+        bitrix_lead_id = $11,
+        bitrix_company_id = $12,
+        service_fixed_fire = $13,
+        service_extinguishers = $14,
+        service_works = $15,
+        wallet_share = $16,
+        nps = $17,
+        open_opportunities = $18,
+        notes = $19,
+        supervisor_ifci_user_id = $20,
+        supervisor_ext_user_id = $21,
+        supervisor_works_user_id = $22
+      WHERE id = $23
       RETURNING *
       `,
       [
@@ -3131,6 +4671,8 @@ app.patch(
         Number(executiveUserId),
         risk,
         segment,
+        String(bitrixLeadId || "").trim(),
+        String(bitrixCompanyId || "").trim(),
         services.fixedFire,
         services.extinguishers,
         services.works,
@@ -3145,6 +4687,21 @@ app.patch(
       ]
     );
 
+    if (visitRulesEnabled) {
+      await query(
+        `
+        DELETE FROM meetings
+        WHERE is_automatic = TRUE
+          AND automatic_rule_entity_type = 'client'
+          AND automatic_rule_entity_id = $1
+          AND COALESCE(is_deleted, FALSE) = FALSE
+          AND status = ANY($2::text[])
+        `,
+        [clientId, [MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED]]
+      );
+      await replaceVisitRules({ query }, "client", clientId, payload.visitRules || []);
+      await syncAutomaticMeetingsForEntity({ query }, "client", clientId);
+    }
     const selectedUpdated = await query(buildClientSelectQuery("WHERE clients.id = $1", ""), [updatedResult.rows[0].id]);
     const client = await buildClientResponse(selectedUpdated.rows[0]);
     await logAuditEvent({
@@ -3204,13 +4761,19 @@ app.post(
     }
 
     const payload = req.body || {};
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
     const errors = await validateBranchPayload(payload);
+    const ruleErrors = visitRulesEnabled ? await validateVisitRulesPayload(payload.visitRules) : [];
     if (errors.length) {
       res.status(400).json({ error: errors[0] });
       return;
     }
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0] });
+      return;
+    }
 
-    const { name, sector, risk, segment, services, supervisors, notes } = payload;
+    const { name, sector, risk, segment, bitrixCompanyId, services, supervisors, notes } = payload;
     const parentClientResult = await query("SELECT manager, billing_2025, executive_user_id FROM clients WHERE id = $1", [clientId]);
     const executiveName = parentClientResult.rows[0]?.manager || "";
     const parentBilling = Number(parentClientResult.rows[0]?.billing_2025 || 0);
@@ -3223,10 +4786,10 @@ app.post(
       `
       INSERT INTO client_branches (
         client_id, name, billing_2025, sector, manager, executive_user_id, risk, segment,
-        service_fixed_fire, service_extinguishers, service_works, notes,
+        bitrix_company_id, service_fixed_fire, service_extinguishers, service_works, notes,
         supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id,
         created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
       RETURNING id
       `,
       [
@@ -3238,6 +4801,7 @@ app.post(
         parentExecutiveUserId,
         risk,
         segment,
+        String(bitrixCompanyId || "").trim(),
         services.fixedFire,
         services.extinguishers,
         services.works,
@@ -3248,8 +4812,15 @@ app.post(
       ]
     );
 
+    if (visitRulesEnabled) {
+      await replaceVisitRules({ query }, "branch", result.rows[0].id, payload.visitRules || []);
+      await syncAutomaticMeetingsForEntity({ query }, "branch", result.rows[0].id);
+    }
     const selectedBranch = await query(buildBranchSelectQuery("WHERE client_branches.id = $1", ""), [result.rows[0].id]);
-    const branch = toBranchObject(selectedBranch.rows[0]);
+    const branch = {
+      ...toBranchObject(selectedBranch.rows[0]),
+      visitRules: await fetchVisitRules("branch", result.rows[0].id)
+    };
     await logAuditEvent({
       req,
       action: "branch.create",
@@ -3276,13 +4847,19 @@ app.patch(
     }
 
     const payload = req.body || {};
+    const visitRulesEnabled = await isVisitRulesFeatureEnabled();
     const errors = await validateBranchPayload(payload);
+    const ruleErrors = visitRulesEnabled ? await validateVisitRulesPayload(payload.visitRules) : [];
     if (errors.length) {
       res.status(400).json({ error: errors[0] });
       return;
     }
+    if (ruleErrors.length) {
+      res.status(400).json({ error: ruleErrors[0] });
+      return;
+    }
 
-    const { name, sector, risk, segment, services, supervisors, notes } = payload;
+    const { name, sector, risk, segment, bitrixCompanyId, services, supervisors, notes } = payload;
     const parentClientResult = await query("SELECT manager, billing_2025, executive_user_id FROM clients WHERE id = $1", [clientId]);
     const executiveName = parentClientResult.rows[0]?.manager || "";
     const parentBilling = Number(parentClientResult.rows[0]?.billing_2025 || 0);
@@ -3302,15 +4879,16 @@ app.patch(
         executive_user_id = $5,
         risk = $6,
         segment = $7,
-        service_fixed_fire = $8,
-        service_extinguishers = $9,
-        service_works = $10,
-        notes = $11,
-        supervisor_ifci_user_id = $12,
-        supervisor_ext_user_id = $13,
-        supervisor_works_user_id = $14,
+        bitrix_company_id = $8,
+        service_fixed_fire = $9,
+        service_extinguishers = $10,
+        service_works = $11,
+        notes = $12,
+        supervisor_ifci_user_id = $13,
+        supervisor_ext_user_id = $14,
+        supervisor_works_user_id = $15,
         updated_at = NOW()
-      WHERE id = $15 AND client_id = $16
+      WHERE id = $16 AND client_id = $17
       RETURNING id
       `,
       [
@@ -3321,6 +4899,7 @@ app.patch(
         parentExecutiveUserId,
         risk,
         segment,
+        String(bitrixCompanyId || "").trim(),
         services.fixedFire,
         services.extinguishers,
         services.works,
@@ -3333,8 +4912,26 @@ app.patch(
       ]
     );
 
+    if (visitRulesEnabled) {
+      await query(
+        `
+        DELETE FROM meetings
+        WHERE is_automatic = TRUE
+          AND automatic_rule_entity_type = 'branch'
+          AND automatic_rule_entity_id = $1
+          AND COALESCE(is_deleted, FALSE) = FALSE
+          AND status = ANY($2::text[])
+        `,
+        [branchId, [MEETING_STATUS.SCHEDULED, MEETING_STATUS.CONFIRMED]]
+      );
+      await replaceVisitRules({ query }, "branch", branchId, payload.visitRules || []);
+      await syncAutomaticMeetingsForEntity({ query }, "branch", branchId);
+    }
     const selectedBranch = await query(buildBranchSelectQuery("WHERE client_branches.id = $1", ""), [result.rows[0].id]);
-    const branch = toBranchObject(selectedBranch.rows[0]);
+    const branch = {
+      ...toBranchObject(selectedBranch.rows[0]),
+      visitRules: await fetchVisitRules("branch", branchId)
+    };
     await logAuditEvent({
       req,
       action: "branch.update",
@@ -3621,6 +5218,13 @@ app.post(
     const nextMeetingDate = String(payload.nextMeetingDate || "").trim();
     const participantUserIds = normalizeParticipantUserIds(payload.participantUserIds);
     const participantNames = await resolveParticipantNames(participantUserIds);
+    const complaintTask = await syncComplaintBitrixTask({
+      clientId,
+      scheduledFor: payload.scheduledFor.trim(),
+      serviceStatus: payload.serviceStatus,
+      complaintBitrixResponsibleId: payload.complaintBitrixResponsibleId,
+      complaintBitrixTaskId: ""
+    });
 
     const createdMeeting = await withTransaction(async (client) => {
       const result = await client.query(
@@ -3628,13 +5232,14 @@ app.post(
         INSERT INTO meetings (
           client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids,
           contact_name, contact_role, modality, next_meeting_date, minutes, findings,
-          active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-          created_by, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW())
+          active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+          complaint_bitrix_responsible_id, complaint_bitrix_task_id, created_by, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW())
         RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
-                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
-                  created_by, status, created_at, updated_at
+                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+                  complaint_bitrix_responsible_id, complaint_bitrix_task_id,
+                  created_by, status, is_automatic, automatic_rule_id, automatic_rule_entity_type, automatic_rule_entity_id, created_at, updated_at
         `,
         [
           clientId,
@@ -3656,7 +5261,10 @@ app.post(
           String(payload.opportunities || "").trim(),
           String(payload.substituteRecovery || "").trim(),
           String(payload.globalContacts || "").trim(),
+          String(payload.serviceHealthStatus || "").trim(),
           String(payload.serviceStatus || "").trim(),
+          String(payload.complaintBitrixResponsibleId || "").trim(),
+          String(complaintTask.taskId || "").trim(),
           String(currentUser?.name || "").trim(),
           status
         ]
@@ -3664,6 +5272,7 @@ app.post(
 
       const meeting = toMeetingObject(result.rows[0]);
       await upsertMeetingFollowUp(client, meeting, currentUser?.name || "");
+      await regenerateAutomaticMeetingIfNeeded(client, meeting);
       return meeting;
     });
 
@@ -3725,6 +5334,22 @@ app.patch(
     const nextMeetingDate = String(payload.nextMeetingDate || "").trim();
     const participantUserIds = normalizeParticipantUserIds(payload.participantUserIds);
     const participantNames = await resolveParticipantNames(participantUserIds);
+    const meetingForBitrixResult = await query(
+      `
+      SELECT complaint_bitrix_task_id
+      FROM meetings
+      WHERE id = $1 AND client_id = $2
+      LIMIT 1
+      `,
+      [meetingId, clientId]
+    );
+    const complaintTask = await syncComplaintBitrixTask({
+      clientId,
+      scheduledFor: payload.scheduledFor.trim(),
+      serviceStatus: payload.serviceStatus,
+      complaintBitrixResponsibleId: payload.complaintBitrixResponsibleId,
+      complaintBitrixTaskId: meetingForBitrixResult.rows[0]?.complaint_bitrix_task_id || ""
+    });
 
     const updatedMeeting = await withTransaction(async (client) => {
       const result = await client.query(
@@ -3749,14 +5374,18 @@ app.patch(
           opportunities = $16,
           substitute_recovery = $17,
           global_contacts = $18,
-          service_status = $19,
-          created_by = $20,
-          status = $21,
+          service_health_status = $19,
+          service_status = $20,
+          complaint_bitrix_responsible_id = $21,
+          complaint_bitrix_task_id = $22,
+          created_by = $23,
+          status = $24,
           updated_at = NOW()
-        WHERE id = $22 AND client_id = $23
+        WHERE id = $25 AND client_id = $26
         RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
-                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_status,
+                  active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
+                  complaint_bitrix_responsible_id, complaint_bitrix_task_id,
                   created_by, status, created_at, updated_at
         `,
         [
@@ -3778,7 +5407,10 @@ app.patch(
           String(payload.opportunities || "").trim(),
           String(payload.substituteRecovery || "").trim(),
           String(payload.globalContacts || "").trim(),
+          String(payload.serviceHealthStatus || "").trim(),
           String(payload.serviceStatus || "").trim(),
+          String(payload.complaintBitrixResponsibleId || "").trim(),
+          String(complaintTask.taskId || "").trim(),
           String(currentUser?.name || "").trim(),
           status,
           meetingId,
@@ -3850,13 +5482,16 @@ app.use((_req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: "Error interno del servidor" });
+  res.status(Number(error?.status) || 500).json({
+    error: String(error?.message || "Error interno del servidor")
+  });
 });
 
 async function start() {
   await initDb();
   await refreshMeetingTypesCache();
   await refreshMeetingReasonsCache();
+  await refreshContactRoleOptionsCache();
   app.listen(PORT, () => {
     console.log(`Servidor iniciado en http://localhost:${PORT}`);
   });

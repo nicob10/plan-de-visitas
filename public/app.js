@@ -18,6 +18,12 @@ const DEFAULT_OPPORTUNITY_TYPES = ["Proyecto", "Negociación"];
 const DEFAULT_SERVICE_LINES = ["Instalaciones Fijas", "Extintores", "Obras C.I.", "Multiservicio", "Otro"];
 const DEFAULT_FOLLOW_UP_TYPES = ["Llamada", "Email", "Visita", "Cotización", "Recordatorio", "Reunión"];
 const DEFAULT_FOLLOW_UP_STATUSES = ["Pendiente", "Hecho"];
+const VISIT_RULE_OBJECTIVE_OPTIONS = ["Desarrollo de cuentas", "Nuevo negocio"];
+const BITRIX_COMPLAINT_RESPONSIBLES = [
+  { id: "44", name: "Gonzalo Garcia" },
+  { id: "10542", name: "Guillermo Saralegui" },
+  { id: "1720", name: "Guido Avalo Ceci" }
+];
 const CRM_ENABLED = false;
 
 const loginScreen = document.getElementById("loginScreen");
@@ -25,6 +31,7 @@ const appContent = document.getElementById("appContent");
 const loginForm = document.getElementById("loginForm");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
+const loginRemember = document.getElementById("loginRemember");
 const loginSubmit = document.getElementById("loginSubmit");
 const loginStatus = document.getElementById("loginStatus");
 const currentUserBadge = document.getElementById("currentUserBadge");
@@ -61,6 +68,9 @@ const userCreateForm = document.getElementById("userCreateForm");
 const newUserName = document.getElementById("newUserName");
 const newUserEmail = document.getElementById("newUserEmail");
 const newUserRole = document.getElementById("newUserRole");
+const newUserBitrixSearch = document.getElementById("newUserBitrixSearch");
+const newUserBitrixOptions = document.getElementById("newUserBitrixOptions");
+const newUserBitrixId = document.getElementById("newUserBitrixId");
 const newUserPassword = document.getElementById("newUserPassword");
 const createUserBtn = document.getElementById("createUserBtn");
 const createUserStatus = document.getElementById("createUserStatus");
@@ -76,6 +86,11 @@ const clientsImportFile = document.getElementById("clientsImportFile");
 const importClientsBtn = document.getElementById("importClientsBtn");
 const clientsImportStatus = document.getElementById("clientsImportStatus");
 const clientsImportDetails = document.getElementById("clientsImportDetails");
+const downloadBranchesTemplateBtn = document.getElementById("downloadBranchesTemplateBtn");
+const branchesImportFile = document.getElementById("branchesImportFile");
+const importBranchesBtn = document.getElementById("importBranchesBtn");
+const branchesImportStatus = document.getElementById("branchesImportStatus");
+const branchesImportDetails = document.getElementById("branchesImportDetails");
 const downloadUsersTemplateBtn = document.getElementById("downloadUsersTemplateBtn");
 const usersImportFile = document.getElementById("usersImportFile");
 const importUsersBtn = document.getElementById("importUsersBtn");
@@ -97,10 +112,40 @@ const saveMeetingReasonBtn = document.getElementById("saveMeetingReasonBtn");
 const cancelMeetingReasonEditBtn = document.getElementById("cancelMeetingReasonEditBtn");
 const meetingReasonStatus = document.getElementById("meetingReasonStatus");
 const meetingReasonsTableBody = document.getElementById("meetingReasonsTableBody");
+const contactRoleForm = document.getElementById("contactRoleForm");
+const contactRoleName = document.getElementById("contactRoleName");
+const contactRoleFormTitle = document.getElementById("contactRoleFormTitle");
+const saveContactRoleBtn = document.getElementById("saveContactRoleBtn");
+const cancelContactRoleEditBtn = document.getElementById("cancelContactRoleEditBtn");
+const contactRoleStatus = document.getElementById("contactRoleStatus");
+const contactRolesTableBody = document.getElementById("contactRolesTableBody");
 const trashMeetingsTableBody = document.getElementById("trashMeetingsTableBody");
 const trashMeetingsStatus = document.getElementById("trashMeetingsStatus");
 const auditLogsTableBody = document.getElementById("auditLogsTableBody");
 const auditLogsStatus = document.getElementById("auditLogsStatus");
+const visitRulesFeatureForm = document.getElementById("visitRulesFeatureForm");
+const visitRulesFeatureToggle = document.getElementById("visitRulesFeatureToggle");
+const saveVisitRulesFeatureBtn = document.getElementById("saveVisitRulesFeatureBtn");
+const visitRulesFeatureStatus = document.getElementById("visitRulesFeatureStatus");
+const bitrixUsersPreviewForm = document.getElementById("bitrixUsersPreviewForm");
+const bitrixWebhookUrl = document.getElementById("bitrixWebhookUrl");
+const loadBitrixUsersBtn = document.getElementById("loadBitrixUsersBtn");
+const saveBitrixWebhookBtn = document.getElementById("saveBitrixWebhookBtn");
+const bitrixUsersStatus = document.getElementById("bitrixUsersStatus");
+const bitrixLocalUsersCount = document.getElementById("bitrixLocalUsersCount");
+const bitrixRemoteUsersCount = document.getElementById("bitrixRemoteUsersCount");
+const bitrixLocalClientsCount = document.getElementById("bitrixLocalClientsCount");
+const bitrixRemoteCompaniesCount = document.getElementById("bitrixRemoteCompaniesCount");
+const bitrixRemoteLeadsCount = document.getElementById("bitrixRemoteLeadsCount");
+const bitrixUserMappingsTableBody = document.getElementById("bitrixUserMappingsTableBody");
+const bitrixClientMappingsTableBody = document.getElementById("bitrixClientMappingsTableBody");
+const bitrixTaskTestForm = document.getElementById("bitrixTaskTestForm");
+const bitrixTaskTitle = document.getElementById("bitrixTaskTitle");
+const bitrixTaskResponsible = document.getElementById("bitrixTaskResponsible");
+const bitrixTaskDescription = document.getElementById("bitrixTaskDescription");
+const createBitrixTaskBtn = document.getElementById("createBitrixTaskBtn");
+const bitrixTaskStatus = document.getElementById("bitrixTaskStatus");
+const bitrixUsersTableBody = document.getElementById("bitrixUsersTableBody");
 const visitsTableBody = document.getElementById("visitsTableBody");
 const visitsVisibleCount = document.getElementById("visitsVisibleCount");
 const visitsSearchInput = document.getElementById("visitsSearchInput");
@@ -113,12 +158,28 @@ const visitsParticipantFilter = document.getElementById("visitsParticipantFilter
 const visitsDateFromFilter = document.getElementById("visitsDateFromFilter");
 const visitsDateToFilter = document.getElementById("visitsDateToFilter");
 const exportVisitsBtn = document.getElementById("exportVisitsBtn");
+const statsExecutiveFilter = document.getElementById("statsExecutiveFilter");
 const statsDateFrom = document.getElementById("statsDateFrom");
 const statsDateTo = document.getElementById("statsDateTo");
 const applyStatsFiltersBtn = document.getElementById("applyStatsFiltersBtn");
 const resetStatsFiltersBtn = document.getElementById("resetStatsFiltersBtn");
 const statsUsersStatus = document.getElementById("statsUsersStatus");
 const statsTypesStatus = document.getElementById("statsTypesStatus");
+const statsRulesStatus = document.getElementById("statsRulesStatus");
+const statsSemaphoreStatus = document.getElementById("statsSemaphoreStatus");
+const statsRulesCard = document.getElementById("statsRulesCard");
+const statsSemaphoreCard = document.getElementById("statsSemaphoreCard");
+const statsRulesTotal = document.getElementById("statsRulesTotal");
+const statsRulesCompleted = document.getElementById("statsRulesCompleted");
+const statsRulesCompletionRate = document.getElementById("statsRulesCompletionRate");
+const statsSemaphoreWhiteRate = document.getElementById("statsSemaphoreWhiteRate");
+const statsSemaphoreGreenRate = document.getElementById("statsSemaphoreGreenRate");
+const statsSemaphoreYellowRate = document.getElementById("statsSemaphoreYellowRate");
+const statsSemaphoreRedRate = document.getElementById("statsSemaphoreRedRate");
+const statsSemaphoreWhiteCount = document.getElementById("statsSemaphoreWhiteCount");
+const statsSemaphoreGreenCount = document.getElementById("statsSemaphoreGreenCount");
+const statsSemaphoreYellowCount = document.getElementById("statsSemaphoreYellowCount");
+const statsSemaphoreRedCount = document.getElementById("statsSemaphoreRedCount");
 const statsUsersTableBody = document.getElementById("statsUsersTableBody");
 const statsTypesTableBody = document.getElementById("statsTypesTableBody");
 
@@ -212,6 +273,10 @@ const editSector = document.getElementById("editSector");
 const editCompanyType = document.getElementById("editCompanyType");
 const editCountry = document.getElementById("editCountry");
 const editAccountStage = document.getElementById("editAccountStage");
+const editBitrixLeadId = document.getElementById("editBitrixLeadId");
+const editBitrixCompanySearch = document.getElementById("editBitrixCompanySearch");
+const editBitrixCompanyId = document.getElementById("editBitrixCompanyId");
+const editBitrixCompanyOptions = document.getElementById("editBitrixCompanyOptions");
 const editManager = document.getElementById("editManager");
 const editRisk = document.getElementById("editRisk");
 const editSegment = document.getElementById("editSegment");
@@ -226,6 +291,9 @@ const editSupervisorFixedFire = document.getElementById("editSupervisorFixedFire
 const editSupervisorExtinguishers = document.getElementById("editSupervisorExtinguishers");
 const editSupervisorWorks = document.getElementById("editSupervisorWorks");
 const editNotes = document.getElementById("editNotes");
+const addVisitRuleBtn = document.getElementById("addVisitRuleBtn");
+const visitRulesList = document.getElementById("visitRulesList");
+const visitRulesEditorSection = document.getElementById("visitRulesEditorSection");
 const saveCompanyBtn = document.getElementById("saveCompanyBtn");
 const hideCompanyBtn = document.getElementById("hideCompanyBtn");
 const editCompanyStatus = document.getElementById("editCompanyStatus");
@@ -256,8 +324,12 @@ const meetingOpportunities = document.getElementById("meetingOpportunities");
 const meetingSubstituteRecovery = document.getElementById("meetingSubstituteRecovery");
 const meetingGlobalContactsGroup = document.getElementById("meetingGlobalContactsGroup");
 const meetingGlobalContacts = document.getElementById("meetingGlobalContacts");
+const meetingServiceHealthStatusGroup = document.getElementById("meetingServiceHealthStatusGroup");
+const meetingServiceHealthStatus = document.getElementById("meetingServiceHealthStatus");
 const meetingServiceStatusGroup = document.getElementById("meetingServiceStatusGroup");
 const meetingServiceStatus = document.getElementById("meetingServiceStatus");
+const meetingComplaintBitrixResponsibleGroup = document.getElementById("meetingComplaintBitrixResponsibleGroup");
+const meetingComplaintBitrixResponsible = document.getElementById("meetingComplaintBitrixResponsible");
 const saveMeetingBtn = document.getElementById("saveMeetingBtn");
 const meetingStatus = document.getElementById("meetingStatus");
 const meetingDetailView = document.getElementById("meetingDetailView");
@@ -277,12 +349,49 @@ let editingBranchId = null;
 let searchTimer = null;
 let meetingTypes = [];
 let meetingReasons = [];
+let contactRoles = [];
 let meetingStatuses = [];
 let meetingModalities = [];
 let editingMeetingTypeId = null;
 let editingMeetingReasonId = null;
+let editingContactRoleId = null;
 let deletedMeetings = [];
 let auditLogs = [];
+let bitrixPreviewUsers = [];
+let bitrixUserMappings = [];
+let bitrixClientMappings = [];
+let bitrixDirectory = {
+  users: [],
+  companies: []
+};
+let bitrixDirectoryPermissions = {
+  users: true,
+  companies: true
+};
+let bitrixDirectoryErrors = {
+  users: "",
+  companies: ""
+};
+let activeBitrixSearchDropdown = null;
+let bitrixCompanySearchResults = [];
+let bitrixCompanySearchRequestId = 0;
+let bitrixCounts = {
+  localUsers: 0,
+  localClients: 0,
+  bitrixUsers: 0,
+  bitrixCompanies: 0,
+  bitrixLeads: 0
+};
+let bitrixPermissions = {
+  users: false,
+  companies: false,
+  leads: false
+};
+let bitrixErrors = {
+  companies: "",
+  leads: ""
+};
+let visitRulesFeatureEnabled = true;
 let currentSettingsTab = "catalogs";
 let calendarMeetings = [];
 let calendarDate = new Date();
@@ -294,11 +403,17 @@ let userRoles = [];
 let userFormMode = "create";
 let editingUserId = null;
 let sectorOptions = [];
+let currentVisitRules = [];
 let visits = [];
 let visitsGridData = [];
 let visitStats = {
   byUser: [],
-  byType: []
+  byType: [],
+  byRule: {
+    totalCount: 0,
+    completedCount: 0,
+    completionRate: 0
+  }
 };
 let visitsSearchTimer = null;
 let pipelineSearchTimer = null;
@@ -356,6 +471,15 @@ function updateAuthUi() {
   currentUserBadge.innerHTML = loggedIn
     ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
     : "";
+}
+
+function applyFeatureFlagsUi() {
+  visitRulesEditorSection.classList.toggle("hidden", !visitRulesFeatureEnabled);
+  statsRulesCard.classList.toggle("hidden", !visitRulesFeatureEnabled);
+  statsSemaphoreCard.classList.toggle("hidden", !visitRulesFeatureEnabled);
+  if (visitRulesFeatureToggle) {
+    visitRulesFeatureToggle.checked = !!visitRulesFeatureEnabled;
+  }
 }
 
 function syncModalState() {
@@ -544,6 +668,7 @@ function renderMeetingTypeColorOptions() {
 function renderTypeSelectOptions() {
   const currentVisitType = visitsTypeFilter.value;
   const currentVisitStatus = visitsStatusFilter.value;
+  const currentContactRole = meetingContactRole.value;
   meetingKind.innerHTML = meetingTypes
     .map((type) => `<option value="${type.value}">${type.label}</option>`)
     .join("");
@@ -566,6 +691,14 @@ function renderTypeSelectOptions() {
   meetingModality.innerHTML = meetingModalities
     .map((modality) => `<option value="${modality}">${modality}</option>`)
     .join("");
+
+  meetingContactRole.innerHTML = [
+    '<option value="">Seleccionar función</option>',
+    ...contactRoles.map((role) => `<option value="${role.name}">${role.name}</option>`)
+  ].join("");
+  if (currentContactRole && contactRoles.some((role) => role.name === currentContactRole)) {
+    meetingContactRole.value = currentContactRole;
+  }
 
   visitsTypeFilter.innerHTML = ['<option value="todos">Todos</option>']
     .concat(meetingTypes.map((type) => `<option value="${type.value}">${type.label}</option>`))
@@ -698,10 +831,23 @@ function syncMeetingContextBlocks() {
     Object.values(scopeEntity.services || {}).some(Boolean);
 
   meetingGlobalContactsGroup.classList.toggle("hidden", !isGlobalCompany);
+  meetingServiceHealthStatusGroup.classList.toggle("hidden", !hasActiveServices);
   meetingServiceStatusGroup.classList.toggle("hidden", !hasActiveServices);
+  meetingComplaintBitrixResponsibleGroup.classList.toggle("hidden", !hasActiveServices);
 
   if (!isGlobalCompany) meetingGlobalContacts.value = "";
+  if (!hasActiveServices) meetingServiceHealthStatus.value = "";
   if (!hasActiveServices) meetingServiceStatus.value = "";
+  if (!hasActiveServices) meetingComplaintBitrixResponsible.value = "";
+}
+
+function renderComplaintBitrixResponsibleOptions(selectedValue = "") {
+  meetingComplaintBitrixResponsible.innerHTML = ['<option value="">Seleccionar responsable</option>']
+    .concat(
+      BITRIX_COMPLAINT_RESPONSIBLES.map((item) => `<option value="${item.id}">${item.name}</option>`)
+    )
+    .join("");
+  meetingComplaintBitrixResponsible.value = selectedValue || "";
 }
 
 function syncOpportunityLossReasonVisibility() {
@@ -730,6 +876,15 @@ function resetMeetingReasonForm() {
   cancelMeetingReasonEditBtn.classList.add("hidden");
   meetingReasonName.value = "";
   meetingReasonStatus.textContent = "";
+}
+
+function resetContactRoleForm() {
+  editingContactRoleId = null;
+  contactRoleFormTitle.textContent = "Nueva función del contacto";
+  saveContactRoleBtn.textContent = "Guardar función";
+  cancelContactRoleEditBtn.classList.add("hidden");
+  contactRoleName.value = "";
+  contactRoleStatus.textContent = "";
 }
 
 function renderMeetingTypesConfig() {
@@ -822,6 +977,48 @@ function renderMeetingReasonsConfig() {
   });
 }
 
+function renderContactRolesConfig() {
+  contactRolesTableBody.innerHTML = "";
+
+  contactRoles.forEach((role) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${role.name}</b></td>
+      <td>
+        <div class="table-actions">
+          <button class="secondary-btn edit-contact-role-btn" type="button">Editar</button>
+          <button class="ghost-btn delete-contact-role-btn" type="button">Eliminar</button>
+        </div>
+      </td>
+    `;
+
+    row.querySelector(".edit-contact-role-btn").addEventListener("click", () => {
+      editingContactRoleId = role.id;
+      contactRoleFormTitle.textContent = `Editar función · ${role.name}`;
+      saveContactRoleBtn.textContent = "Guardar cambios";
+      cancelContactRoleEditBtn.classList.remove("hidden");
+      contactRoleName.value = role.name;
+      contactRoleStatus.textContent = "";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    row.querySelector(".delete-contact-role-btn").addEventListener("click", async () => {
+      const confirmed = window.confirm(`Se va a eliminar la función ${role.name}.`);
+      if (!confirmed) return;
+
+      try {
+        await deleteContactRole(role.id);
+        await loadContactRolesConfig();
+        resetContactRoleForm();
+      } catch (error) {
+        notifyError(error.message);
+      }
+    });
+
+    contactRolesTableBody.appendChild(row);
+  });
+}
+
 function formatDateTime(dateValue) {
   if (!dateValue) return "-";
   const date = new Date(dateValue);
@@ -903,7 +1100,15 @@ function formatAuditAction(log) {
     "settings.meeting_type.delete": "Baja de tipo de reunión",
     "settings.meeting_reason.create": "Alta de motivo",
     "settings.meeting_reason.update": "Edición de motivo",
-    "settings.meeting_reason.delete": "Baja de motivo"
+    "settings.meeting_reason.delete": "Baja de motivo",
+    "settings.contact_role.create": "Alta de función de contacto",
+    "settings.contact_role.update": "Edición de función de contacto",
+    "settings.contact_role.delete": "Baja de función de contacto",
+    "settings.bitrix.config.update": "Actualización de webhook Bitrix",
+    "settings.bitrix.users_preview": "Consulta de usuarios Bitrix",
+    "settings.bitrix.mappings_preview": "Validación de mapeos Bitrix",
+    "settings.bitrix.task_test_create": "Alta de tarea de prueba en Bitrix",
+    "settings.features.update": "Actualización de módulos"
   };
   return actionLabels[log.action] || log.action;
 }
@@ -931,11 +1136,113 @@ function renderAuditLogs() {
   });
 }
 
+function renderBitrixUsersPreview() {
+  bitrixUsersTableBody.innerHTML = "";
+
+  if (!bitrixPreviewUsers.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">Todavía no consultaste usuarios de Bitrix.</td>';
+    bitrixUsersTableBody.appendChild(row);
+    return;
+  }
+
+  bitrixPreviewUsers.forEach((user) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><b>${user.id || "-"}</b></td>
+      <td>${user.fullName || "-"}</td>
+      <td>${user.email || "-"}</td>
+      <td>${user.workPosition || "-"}</td>
+      <td>${user.active ? "Activo" : "Inactivo"}${user.admin ? " · Admin" : ""}</td>
+    `;
+    bitrixUsersTableBody.appendChild(row);
+  });
+}
+
+function renderBitrixTaskResponsibleOptions() {
+  const currentValue = bitrixTaskResponsible.value;
+  bitrixTaskResponsible.innerHTML = ['<option value="">Seleccionar responsable</option>']
+    .concat(bitrixPreviewUsers.map((user) => `<option value="${user.id}">${user.fullName} (${user.id})</option>`))
+    .join("");
+
+  if (currentValue && bitrixPreviewUsers.some((user) => String(user.id) === String(currentValue))) {
+    bitrixTaskResponsible.value = currentValue;
+  } else if (bitrixPreviewUsers.length) {
+    bitrixTaskResponsible.value = String(bitrixPreviewUsers[0].id);
+  }
+}
+
+function renderBitrixMappings() {
+  bitrixLocalUsersCount.textContent = String(bitrixCounts.localUsers || 0);
+  bitrixRemoteUsersCount.textContent = String(bitrixCounts.bitrixUsers || 0);
+  bitrixLocalClientsCount.textContent = String(bitrixCounts.localClients || 0);
+  bitrixRemoteCompaniesCount.textContent = String(bitrixCounts.bitrixCompanies || 0);
+  bitrixRemoteLeadsCount.textContent = String(bitrixCounts.bitrixLeads || 0);
+
+  bitrixUserMappingsTableBody.innerHTML = "";
+  if (!bitrixUserMappings.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">Todavía no se generó el mapeo de usuarios.</td>';
+    bitrixUserMappingsTableBody.appendChild(row);
+  } else {
+    bitrixUserMappings.forEach((mapping) => {
+      const row = document.createElement("tr");
+      const statusLabel =
+        mapping.status === "mapped"
+          ? "Vinculado"
+          : mapping.status === "missing"
+            ? "No encontrado"
+            : "Sin ID";
+      row.innerHTML = `
+        <td><b>${mapping.appUser?.name || "-"}</b><br /><small>${mapping.appUser?.email || "-"}</small></td>
+        <td>${mapping.localBitrixUserId || "-"}</td>
+        <td>${mapping.bitrixUser?.fullName || "-"}</td>
+        <td>${mapping.bitrixUser?.email || "-"}</td>
+        <td>${statusLabel}</td>
+      `;
+      bitrixUserMappingsTableBody.appendChild(row);
+    });
+  }
+
+  bitrixClientMappingsTableBody.innerHTML = "";
+  if (!bitrixClientMappings.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="5" class="muted-inline">Todavía no se generó el mapeo de clientes.</td>';
+    bitrixClientMappingsTableBody.appendChild(row);
+  } else {
+    bitrixClientMappings.forEach((mapping) => {
+      const row = document.createElement("tr");
+      const matchedLabel = mapping.matchedEntity
+        ? `${mapping.matchedEntityType === "company" ? "Compañía" : "Lead"} · ${mapping.matchedEntity.title}`
+        : "-";
+      const statusLabel =
+        mapping.status === "mapped"
+          ? "Vinculado"
+          : mapping.status === "missing"
+            ? "No encontrado"
+            : mapping.status === "scope_missing"
+              ? "Sin permiso CRM"
+              : "Sin ID";
+      row.innerHTML = `
+        <td><b>${mapping.clientName}</b></td>
+        <td>${mapping.bitrixCompanyId || "-"}</td>
+        <td>${mapping.bitrixLeadId || "-"}</td>
+        <td>${matchedLabel}</td>
+        <td>${statusLabel}</td>
+      `;
+      bitrixClientMappingsTableBody.appendChild(row);
+    });
+  }
+
+  renderBitrixTaskResponsibleOptions();
+}
+
 function renderVisitsResponsibleFilters() {
   const currentExecutive = visitsExecutiveFilter.value;
   const currentSupervisor = visitsSupervisorFilter.value;
   const currentParticipant = visitsParticipantFilter.value;
   const currentCalendarParticipant = calendarParticipantFilter.value;
+  const currentStatsExecutive = statsExecutiveFilter.value;
   visitsExecutiveFilter.innerHTML = ['<option value="todos">Todos</option>']
     .concat(
       assignmentOptions.executives.map((user) => `<option value="${user.id}">${user.name}</option>`)
@@ -960,10 +1267,15 @@ function renderVisitsResponsibleFilters() {
     .concat(getParticipantUsers().map((user) => `<option value="${user.id}">${user.name}</option>`))
     .join("");
 
+  statsExecutiveFilter.innerHTML = ['<option value="todos">Todos</option>']
+    .concat(assignmentOptions.executives.map((user) => `<option value="${user.id}">${user.name}</option>`))
+    .join("");
+
   visitsExecutiveFilter.value = currentExecutive || "todos";
   visitsSupervisorFilter.value = currentSupervisor || "todos";
   visitsParticipantFilter.value = currentParticipant || "todos";
   calendarParticipantFilter.value = currentCalendarParticipant || "todos";
+  statsExecutiveFilter.value = currentStatsExecutive || "todos";
   renderOpportunityOwnerSelects();
 }
 
@@ -1021,6 +1333,89 @@ function renderSectorSelect(selectedSector = "") {
         `<option value="${sector.name}" ${sector.name === selectedSector ? "selected" : ""}>${sector.name}</option>`
     )
   ].join("");
+}
+
+function createEmptyVisitRule() {
+  return {
+    periodicityDays: 30,
+    contactRole: contactRoles[0]?.name || "",
+    objective: VISIT_RULE_OBJECTIVE_OPTIONS[0]
+  };
+}
+
+function renderVisitRulesEditor() {
+  if (!visitRulesFeatureEnabled) {
+    visitRulesList.innerHTML = "";
+    return;
+  }
+
+  visitRulesList.innerHTML = "";
+
+  if (!currentVisitRules.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted-inline";
+    empty.textContent = "Todavía no hay reglas definidas.";
+    visitRulesList.appendChild(empty);
+    return;
+  }
+
+  currentVisitRules.forEach((rule, index) => {
+    const item = document.createElement("div");
+    item.className = "visit-rule-item";
+    item.innerHTML = `
+      <div class="edit-grid visit-rule-grid">
+        <label>
+          Periodicidad (días)
+          <input class="visit-rule-periodicity" type="number" min="1" step="1" value="${rule.periodicityDays || 30}" />
+        </label>
+        <label>
+          A quién ir a ver
+          <select class="visit-rule-contact-role">
+            <option value="">Seleccionar función</option>
+            ${contactRoles
+              .map(
+                (contactRole) =>
+                  `<option value="${contactRole.name}" ${contactRole.name === rule.contactRole ? "selected" : ""}>${contactRole.name}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+        <label class="span-2">
+          Objetivo
+          <select class="visit-rule-objective">
+            ${VISIT_RULE_OBJECTIVE_OPTIONS.map(
+              (objectiveOption) =>
+                `<option value="${objectiveOption}" ${objectiveOption === rule.objective ? "selected" : ""}>${objectiveOption}</option>`
+            ).join("")}
+            ${
+              rule.objective && !VISIT_RULE_OBJECTIVE_OPTIONS.includes(rule.objective)
+                ? `<option value="${rule.objective}" selected>${rule.objective}</option>`
+                : ""
+            }
+          </select>
+        </label>
+      </div>
+      <div class="table-actions">
+        <button class="ghost-btn remove-visit-rule-btn" type="button">Eliminar regla</button>
+      </div>
+    `;
+
+    item.querySelector(".visit-rule-periodicity").addEventListener("input", (event) => {
+      currentVisitRules[index].periodicityDays = Number(event.target.value || 0);
+    });
+    item.querySelector(".visit-rule-contact-role").addEventListener("change", (event) => {
+      currentVisitRules[index].contactRole = event.target.value;
+    });
+    item.querySelector(".visit-rule-objective").addEventListener("change", (event) => {
+      currentVisitRules[index].objective = event.target.value;
+    });
+    item.querySelector(".remove-visit-rule-btn").addEventListener("click", () => {
+      currentVisitRules.splice(index, 1);
+      renderVisitRulesEditor();
+    });
+
+    visitRulesList.appendChild(item);
+  });
 }
 
 function renderSectors() {
@@ -1518,6 +1913,7 @@ function getCalendarFilters() {
 
 function getVisitsStatsFilters() {
   return {
+    executiveUserId: statsExecutiveFilter.value,
     dateFrom: statsDateFrom.value,
     dateTo: statsDateTo.value
   };
@@ -1526,6 +1922,32 @@ function getVisitsStatsFilters() {
 function renderVisitStats() {
   statsUsersTableBody.innerHTML = "";
   statsTypesTableBody.innerHTML = "";
+  applyFeatureFlagsUi();
+  statsRulesTotal.textContent = String(visitStats.byRule.totalCount || 0);
+  statsRulesCompleted.textContent = String(visitStats.byRule.completedCount || 0);
+  statsRulesCompletionRate.textContent = `${Number(visitStats.byRule.completionRate || 0).toFixed(0)}%`;
+  statsRulesStatus.textContent =
+    visitStats.byRule.totalCount > 0 ? `${visitStats.byRule.completedCount} de ${visitStats.byRule.totalCount}` : "Sin visitas por regla";
+  const semaphores = visitStats.byRule.semaphores || {
+    totalRules: 0,
+    whiteCount: 0,
+    greenCount: 0,
+    yellowCount: 0,
+    redCount: 0,
+    whiteRate: 0,
+    greenRate: 0,
+    yellowRate: 0,
+    redRate: 0
+  };
+  statsSemaphoreWhiteRate.textContent = `${Number(semaphores.whiteRate || 0).toFixed(0)}%`;
+  statsSemaphoreGreenRate.textContent = `${Number(semaphores.greenRate || 0).toFixed(0)}%`;
+  statsSemaphoreYellowRate.textContent = `${Number(semaphores.yellowRate || 0).toFixed(0)}%`;
+  statsSemaphoreRedRate.textContent = `${Number(semaphores.redRate || 0).toFixed(0)}%`;
+  statsSemaphoreWhiteCount.textContent = `${semaphores.whiteCount || 0} reglas`;
+  statsSemaphoreGreenCount.textContent = `${semaphores.greenCount || 0} reglas`;
+  statsSemaphoreYellowCount.textContent = `${semaphores.yellowCount || 0} reglas`;
+  statsSemaphoreRedCount.textContent = `${semaphores.redCount || 0} reglas`;
+  statsSemaphoreStatus.textContent = semaphores.totalRules > 0 ? `${semaphores.totalRules} reglas activas` : "Sin reglas activas";
 
   if (!visitStats.byUser.length) {
     const row = document.createElement("tr");
@@ -1987,6 +2409,8 @@ function renderMeetingCard(meeting) {
   const substituteRecoveryNode = fragment.querySelector(".meeting-substitute-recovery");
   const globalContactsBlock = fragment.querySelector(".meeting-global-contacts-block");
   const globalContactsNode = fragment.querySelector(".meeting-global-contacts");
+  const serviceHealthStatusBlock = fragment.querySelector(".meeting-service-health-status-block");
+  const serviceHealthStatusNode = fragment.querySelector(".meeting-service-health-status");
   const serviceStatusBlock = fragment.querySelector(".meeting-service-status-block");
   const serviceStatusNode = fragment.querySelector(".meeting-service-status");
   const editButton = fragment.querySelector(".edit-meeting-btn");
@@ -2023,8 +2447,10 @@ function renderMeetingCard(meeting) {
   opportunitiesNode.textContent = meeting.opportunities || "Sin oportunidades registradas.";
   substituteRecoveryNode.textContent = meeting.substituteRecovery || "Sin recupero de sustitutos cargado.";
   globalContactsNode.textContent = meeting.globalContacts || "Sin contactos globales registrados.";
-  serviceStatusNode.textContent = meeting.serviceStatus || "Sin status del servicio registrado.";
+  serviceHealthStatusNode.textContent = meeting.serviceHealthStatus || "Sin status del servicio registrado.";
+  serviceStatusNode.textContent = meeting.serviceStatus || "Sin reclamos registrados.";
   globalContactsBlock.classList.toggle("hidden", !meeting.globalContacts);
+  serviceHealthStatusBlock.classList.toggle("hidden", !meeting.serviceHealthStatus);
   serviceStatusBlock.classList.toggle("hidden", !meeting.serviceStatus);
 
   if (meeting.status === "Realizada") {
@@ -2410,6 +2836,7 @@ function renderUsers() {
       <td><b>${user.name}</b></td>
       <td>${user.email}</td>
       <td>${user.role}</td>
+      <td>${user.bitrixUserId || "-"}</td>
       <td>
         <div class="table-actions">
           <button class="secondary-btn edit-user-btn" type="button">Editar</button>
@@ -2528,6 +2955,17 @@ async function loadMeetingReasonsConfig() {
   renderMeetingReasonsConfig();
 }
 
+async function loadContactRolesConfig() {
+  const response = await fetch("/api/settings/contact-roles");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron cargar las funciones del contacto");
+  }
+  contactRoles = data.contactRoles || [];
+  renderTypeSelectOptions();
+  renderContactRolesConfig();
+}
+
 async function loadDeletedMeetings() {
   const response = await fetch("/api/settings/trash/meetings");
   const data = await response.json();
@@ -2552,12 +2990,32 @@ async function loadAuditLogs() {
   renderAuditLogs();
 }
 
+async function loadFeatureSettings() {
+  const response = await fetch("/api/settings/features");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo cargar la configuración de módulos");
+  }
+  visitRulesFeatureEnabled = Boolean(data?.featureFlags?.visitRulesEnabled ?? true);
+  applyFeatureFlagsUi();
+}
+
 async function loadSettingsCatalogs() {
   await loadSectorOptions();
   await loadMeetingTypesConfig();
   await loadMeetingReasonsConfig();
+  await loadContactRolesConfig();
   await loadDeletedMeetings();
   await loadAuditLogs();
+  await loadFeatureSettings();
+  try {
+    const bitrixConfig = await loadBitrixConfig();
+    bitrixWebhookUrl.value = bitrixConfig.webhookUrl || "";
+  } catch (_error) {
+    // Si falla la lectura de la configuración, no bloqueamos el resto de la pantalla.
+  }
+  renderBitrixUsersPreview();
+  renderBitrixMappings();
 }
 
 async function createSector(name) {
@@ -2638,6 +3096,32 @@ async function deleteMeetingReason(id) {
   return data.meetingReasons || [];
 }
 
+async function saveContactRole(payload) {
+  const endpoint = editingContactRoleId ? `/api/settings/contact-roles/${editingContactRoleId}` : "/api/settings/contact-roles";
+  const method = editingContactRoleId ? "PATCH" : "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar la función del contacto");
+  }
+  return data.contactRoles || [];
+}
+
+async function deleteContactRole(id) {
+  const response = await fetch(`/api/settings/contact-roles/${id}`, {
+    method: "DELETE"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo eliminar la función del contacto");
+  }
+  return data.contactRoles || [];
+}
+
 async function downloadClientsTemplate() {
   const response = await fetch("/api/settings/clients-import-template");
   if (!response.ok) {
@@ -2648,6 +3132,22 @@ async function downloadClientsTemplate() {
   const link = document.createElement("a");
   link.href = url;
   link.download = "plantilla-clientes.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadBranchesTemplate() {
+  const response = await fetch("/api/settings/branches-import-template");
+  if (!response.ok) {
+    throw new Error("No se pudo descargar la plantilla de sucursales");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "plantilla-sucursales.xlsx";
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -2674,6 +3174,30 @@ async function importClientsFromExcel(file) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || "No se pudo importar el archivo");
+  }
+  return data;
+}
+
+async function importBranchesFromExcel(file) {
+  const fileData = await file.arrayBuffer();
+  const bytes = new Uint8Array(fileData);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const base64 = window.btoa(binary);
+
+  const response = await fetch("/api/settings/branches-import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileData: base64
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo importar el archivo de sucursales");
   }
   return data;
 }
@@ -2729,6 +3253,86 @@ async function restoreDeletedMeeting(meetingId) {
   return data;
 }
 
+async function previewBitrixUsers(webhookUrlValue) {
+  const response = await fetch("/api/settings/bitrix/users-preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webhookUrl: webhookUrlValue
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron consultar los usuarios de Bitrix");
+  }
+  return data;
+}
+
+async function loadBitrixConfig() {
+  const response = await fetch("/api/settings/bitrix/config");
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo cargar la configuración de Bitrix");
+  }
+  return data;
+}
+
+async function saveBitrixConfig(webhookUrlValue) {
+  const response = await fetch("/api/settings/bitrix/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webhookUrl: webhookUrlValue
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar la configuración de Bitrix");
+  }
+  return data;
+}
+
+async function saveFeatureSettings(payload) {
+  const response = await fetch("/api/settings/features", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo guardar la configuración de módulos");
+  }
+  return data;
+}
+
+async function previewBitrixMappings(webhookUrlValue) {
+  const response = await fetch("/api/settings/bitrix/mappings-preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webhookUrl: webhookUrlValue
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudieron generar los mapeos de Bitrix");
+  }
+  return data;
+}
+
+async function createBitrixTaskTest(payload) {
+  const response = await fetch("/api/settings/bitrix/tasks-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo crear la tarea de prueba en Bitrix");
+  }
+  return data;
+}
+
 function clearImportFeedback(statusNode, detailsNode) {
   statusNode.textContent = "";
   detailsNode.innerHTML = "";
@@ -2765,6 +3369,9 @@ function resetUserForm() {
   newUserPassword.placeholder = "";
   newUserName.value = "";
   newUserEmail.value = "";
+  newUserBitrixSearch.value = "";
+  newUserBitrixId.value = "";
+  closeBitrixSearchDropdown(newUserBitrixOptions);
   newUserPassword.value = "";
   if (userRoles.length) {
     newUserRole.value = userRoles[0];
@@ -2782,6 +3389,9 @@ function startUserEdit(user) {
   newUserName.value = user.name;
   newUserEmail.value = user.email;
   newUserRole.value = user.role;
+  newUserBitrixSearch.value = getBitrixUserLabel(user.bitrixUserId || "");
+  newUserBitrixId.value = user.bitrixUserId || "";
+  closeBitrixSearchDropdown(newUserBitrixOptions);
   newUserPassword.value = "";
   createUserStatus.textContent = "";
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2814,12 +3424,24 @@ function fillEditForm(client) {
   editCompanyType.value = entity?.companyType || "Local";
   editCountry.value = entity?.country || "Argentina";
   editAccountStage.value = entity?.accountStage || "Activa";
+  editBitrixCompanySearch.value = getBitrixCompanyLabel(entity?.bitrixCompanyId || "");
+  editBitrixLeadId.value = entity?.bitrixLeadId || "";
+  editBitrixCompanyId.value = entity?.bitrixCompanyId || "";
+  closeBitrixSearchDropdown(editBitrixCompanyOptions);
   editRisk.value = entity?.risk || "Bajo";
   editSegment.value = entity?.segment || "C";
   editFixedFire.checked = !!entity?.services?.fixedFire;
   editExtinguishers.checked = !!entity?.services?.extinguishers;
   editWorks.checked = !!entity?.services?.works;
   editNotes.value = entity?.notes || "";
+  currentVisitRules = Array.isArray(entity?.visitRules)
+    ? entity.visitRules.map((rule) => ({
+        id: rule.id || null,
+        periodicityDays: Number(rule.periodicityDays || 30),
+        contactRole: rule.contactRole || "",
+        objective: rule.objective || ""
+      }))
+    : [];
   editCompanyStatus.textContent = "";
   editManager.required = editEntityType !== "branch";
   editCompanyType.required = editEntityType !== "branch";
@@ -2829,8 +3451,10 @@ function fillEditForm(client) {
   document.getElementById("editCompanyTypeGroup").classList.toggle("hidden", editEntityType === "branch");
   document.getElementById("editCountryGroup").classList.toggle("hidden", editEntityType === "branch");
   document.getElementById("editAccountStageGroup").classList.toggle("hidden", editEntityType === "branch");
+  editBitrixCompanySearch.closest("label").classList.toggle("hidden", false);
   syncSupervisorVisibility();
   renderAccountRoleSummary();
+  renderVisitRulesEditor();
 }
 
 function fillMeetingForm(meeting) {
@@ -2861,7 +3485,14 @@ function fillMeetingForm(meeting) {
   meetingParticipantsSearch.value = "";
   renderMeetingParticipantsPicker();
   meetingContactName.value = meeting?.contactName || "";
-  meetingContactRole.value = meeting?.contactRole || "";
+  meetingContactRole.value = "";
+  const nextContactRole = meeting?.contactRole || "";
+  if (nextContactRole) {
+    if (!contactRoles.some((role) => role.name === nextContactRole)) {
+      meetingContactRole.innerHTML += `<option value="${nextContactRole}">${nextContactRole}</option>`;
+    }
+    meetingContactRole.value = nextContactRole;
+  }
   meetingStatusSelect.value = meeting?.status || defaultStatus;
   renderMeetingOpportunityOptions(meeting?.opportunityId || "");
   meetingNextDate.value = meeting?.nextMeetingDate || "";
@@ -2870,7 +3501,9 @@ function fillMeetingForm(meeting) {
   meetingOpportunities.value = meeting?.opportunities || "";
   meetingSubstituteRecovery.value = meeting?.substituteRecovery || "";
   meetingGlobalContacts.value = meeting?.globalContacts || "";
+  meetingServiceHealthStatus.value = meeting?.serviceHealthStatus || "";
   meetingServiceStatus.value = meeting?.serviceStatus || "";
+  renderComplaintBitrixResponsibleOptions(meeting?.complaintBitrixResponsibleId || "");
   meetingStatus.textContent = "";
   syncMeetingCompletionFields();
   syncMeetingContextBlocks();
@@ -2917,7 +3550,8 @@ function openBranchCreateScreen() {
     services: { fixedFire: false, extinguishers: false, works: false },
     supervisors: { fixedFire: null, extinguishers: null, works: null },
     executiveUserId: selectedClient.executiveUserId,
-    notes: ""
+    notes: "",
+    visitRules: []
   });
   showScreen("edit");
 }
@@ -2994,15 +3628,210 @@ function buildQuery(params) {
   return qs.toString();
 }
 
+function getBitrixUserLabel(bitrixUserId) {
+  const normalizedId = String(bitrixUserId || "").trim();
+  const match = bitrixDirectory.users.find((item) => item.id === normalizedId);
+  return match?.label || "";
+}
+
+function getBitrixCompanyLabel(bitrixCompanyId) {
+  const normalizedId = String(bitrixCompanyId || "").trim();
+  const match = bitrixDirectory.companies.find((item) => item.id === normalizedId);
+  return match?.label || "";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getBitrixSearchMatches(options, query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return options.slice(0, 25);
+
+  return options
+    .filter((item) =>
+      [item.label, item.name, item.email, item.title, item.id]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery))
+    )
+    .slice(0, 25);
+}
+
+function getBitrixUsersEmptyText(query = "") {
+  if (!bitrixDirectoryPermissions.users) {
+    return bitrixDirectoryErrors.users || "No se pudieron cargar usuarios de Bitrix.";
+  }
+  if (!bitrixDirectory.users.length) {
+    return "No hay usuarios activos de Bitrix disponibles.";
+  }
+  if (String(query || "").trim()) {
+    return "No encontramos usuarios activos de Bitrix para esa búsqueda.";
+  }
+  return "No hay usuarios activos de Bitrix disponibles.";
+}
+
+function getBitrixCompaniesEmptyText(query = "") {
+  if (!bitrixDirectoryPermissions.companies) {
+    return bitrixDirectoryErrors.companies || "El webhook actual no tiene permisos para leer compañías de Bitrix.";
+  }
+  const availableCompanies = bitrixCompanySearchResults.length ? bitrixCompanySearchResults : bitrixDirectory.companies;
+  if (!availableCompanies.length) {
+    return "No hay compañías de Bitrix disponibles.";
+  }
+  if (String(query || "").trim()) {
+    return "No encontramos compañías de Bitrix para esa búsqueda.";
+  }
+  return "No hay compañías de Bitrix disponibles.";
+}
+
+function openBitrixSearchDropdown(container) {
+  if (activeBitrixSearchDropdown && activeBitrixSearchDropdown !== container) {
+    activeBitrixSearchDropdown.classList.add("hidden");
+  }
+  activeBitrixSearchDropdown = container;
+  container.classList.remove("hidden");
+}
+
+function closeBitrixSearchDropdown(container) {
+  container.classList.add("hidden");
+  if (activeBitrixSearchDropdown === container) {
+    activeBitrixSearchDropdown = null;
+  }
+}
+
+function renderBitrixSearchDropdown(container, options, query, emptyText) {
+  const matches = getBitrixSearchMatches(options, query);
+
+  if (!matches.length) {
+    container.innerHTML = `<div class="bitrix-search-empty">${escapeHtml(emptyText)}</div>`;
+    openBitrixSearchDropdown(container);
+    return;
+  }
+
+  container.innerHTML = matches
+    .map(
+      (item) => `
+        <button
+          class="bitrix-search-option"
+          type="button"
+          data-id="${escapeHtml(item.id)}"
+          data-label="${escapeHtml(item.label)}"
+        >
+          <strong>${escapeHtml(item.name || item.title || item.label)}</strong>
+          <small>${escapeHtml(item.email || item.label)}</small>
+        </button>
+      `
+    )
+    .join("");
+
+  openBitrixSearchDropdown(container);
+}
+
+function renderBitrixDirectoryDatalists() {
+  if (activeBitrixSearchDropdown === newUserBitrixOptions) {
+    renderBitrixSearchDropdown(
+      newUserBitrixOptions,
+      bitrixDirectory.users,
+      newUserBitrixSearch.value,
+      getBitrixUsersEmptyText(newUserBitrixSearch.value)
+    );
+  }
+
+  if (activeBitrixSearchDropdown === editBitrixCompanyOptions) {
+    renderBitrixSearchDropdown(
+      editBitrixCompanyOptions,
+      bitrixCompanySearchResults.length ? bitrixCompanySearchResults : bitrixDirectory.companies,
+      editBitrixCompanySearch.value,
+      getBitrixCompaniesEmptyText(editBitrixCompanySearch.value)
+    );
+  }
+}
+
+function syncBitrixUserSelectionFromSearch() {
+  const normalizedValue = newUserBitrixSearch.value.trim();
+  const match = bitrixDirectory.users.find((item) => item.label === normalizedValue);
+  newUserBitrixId.value = match?.id || "";
+}
+
+function syncBitrixCompanySelectionFromSearch() {
+  const normalizedValue = editBitrixCompanySearch.value.trim();
+  const companyOptions = [...bitrixCompanySearchResults, ...bitrixDirectory.companies];
+  const match = companyOptions.find((item) => item.label === normalizedValue);
+  editBitrixCompanyId.value = match?.id || "";
+}
+
+function mergeBitrixCompanies(companies) {
+  const existing = new Map(bitrixDirectory.companies.map((item) => [item.id, item]));
+  companies.forEach((company) => {
+    if (!company?.id) return;
+    existing.set(company.id, company);
+  });
+  bitrixDirectory.companies = Array.from(existing.values());
+}
+
+async function searchBitrixCompaniesRemote(query) {
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    bitrixCompanySearchResults = [];
+    renderBitrixDirectoryDatalists();
+    return;
+  }
+
+  const requestId = ++bitrixCompanySearchRequestId;
+  try {
+    const response = await fetch(`/api/bitrix/companies-search?q=${encodeURIComponent(normalizedQuery)}`);
+    const data = await response.json();
+    if (requestId !== bitrixCompanySearchRequestId) return;
+
+    bitrixDirectoryPermissions.companies = data.permissions?.companies ?? bitrixDirectoryPermissions.companies;
+    bitrixDirectoryErrors.companies = data.errors?.companies || "";
+    bitrixCompanySearchResults = Array.isArray(data.companies) ? data.companies : [];
+    mergeBitrixCompanies(bitrixCompanySearchResults);
+    renderBitrixDirectoryDatalists();
+  } catch (_error) {
+    if (requestId !== bitrixCompanySearchRequestId) return;
+    bitrixCompanySearchResults = [];
+    renderBitrixDirectoryDatalists();
+  }
+}
+
 async function loadCatalogs() {
   const response = await fetch("/api/meeting-types");
   const data = await response.json();
   meetingTypes = data.meetingTypes || [];
   meetingReasons = data.meetingReasons || [];
+  contactRoles = data.contactRoles || [];
   meetingStatuses = data.statuses || [];
   meetingModalities = data.modalities || ["Presencial", "Virtual"];
   renderTypeSelectOptions();
   await loadSectorOptions();
+  try {
+    const bitrixResponse = await fetch("/api/bitrix/options");
+    const bitrixData = await bitrixResponse.json();
+    if (bitrixResponse.ok) {
+      bitrixDirectory = {
+        users: bitrixData.users || [],
+        companies: bitrixData.companies || []
+      };
+      bitrixCompanySearchResults = [];
+      bitrixDirectoryPermissions = bitrixData.permissions || {
+        users: true,
+        companies: true
+      };
+      bitrixDirectoryErrors = bitrixData.errors || {
+        users: "",
+        companies: ""
+      };
+      renderBitrixDirectoryDatalists();
+    }
+  } catch (_error) {
+    // No bloqueamos el uso local si Bitrix no está disponible.
+  }
 }
 
 async function loadCrmCatalogs() {
@@ -3141,6 +3970,8 @@ async function exportVisits() {
 async function loadVisitsStats() {
   statsUsersStatus.textContent = "Cargando...";
   statsTypesStatus.textContent = "Cargando...";
+  statsRulesStatus.textContent = "Cargando...";
+  statsSemaphoreStatus.textContent = "Cargando...";
 
   try {
     const query = buildQuery(getVisitsStatsFilters());
@@ -3150,14 +3981,35 @@ async function loadVisitsStats() {
       throw new Error(data?.error || "No se pudieron cargar las estadísticas");
     }
 
+    visitRulesFeatureEnabled = Boolean(data?.featureFlags?.visitRulesEnabled ?? visitRulesFeatureEnabled);
+    applyFeatureFlagsUi();
+
     visitStats = {
       byUser: data.byUser || [],
-      byType: data.byType || []
+      byType: data.byType || [],
+      byRule: data.byRule || {
+        totalCount: 0,
+        completedCount: 0,
+        completionRate: 0,
+        semaphores: {
+          totalRules: 0,
+          whiteCount: 0,
+          greenCount: 0,
+          yellowCount: 0,
+          redCount: 0,
+          whiteRate: 0,
+          greenRate: 0,
+          yellowRate: 0,
+          redRate: 0
+        }
+      }
     };
     renderVisitStats();
   } catch (error) {
     statsUsersStatus.textContent = "Error";
     statsTypesStatus.textContent = "Error";
+    statsRulesStatus.textContent = "Error";
+    statsSemaphoreStatus.textContent = "Error";
     notifyError(error.message);
   }
 }
@@ -3287,7 +4139,9 @@ async function loadCurrentUser() {
 
     const data = await response.json();
     currentUser = data.user;
+    visitRulesFeatureEnabled = Boolean(data?.featureFlags?.visitRulesEnabled ?? true);
     updateAuthUi();
+    applyFeatureFlagsUi();
     return true;
   } catch (error) {
     console.error("Error cargando sesión", error);
@@ -3472,6 +4326,18 @@ downloadClientsTemplateBtn.addEventListener("click", async () => {
   }
 });
 
+downloadBranchesTemplateBtn.addEventListener("click", async () => {
+  try {
+    clearImportFeedback(branchesImportStatus, branchesImportDetails);
+    downloadBranchesTemplateBtn.disabled = true;
+    await downloadBranchesTemplate();
+  } catch (error) {
+    branchesImportStatus.textContent = error.message;
+  } finally {
+    downloadBranchesTemplateBtn.disabled = false;
+  }
+});
+
 importClientsBtn.addEventListener("click", async () => {
   const file = clientsImportFile.files?.[0];
   if (!file) {
@@ -3492,6 +4358,29 @@ importClientsBtn.addEventListener("click", async () => {
     clientsImportDetails.classList.add("hidden");
   } finally {
     importClientsBtn.disabled = false;
+  }
+});
+
+importBranchesBtn.addEventListener("click", async () => {
+  const file = branchesImportFile.files?.[0];
+  if (!file) {
+    branchesImportStatus.textContent = "Seleccioná un archivo Excel antes de importar.";
+    branchesImportDetails.classList.add("hidden");
+    return;
+  }
+
+  try {
+    clearImportFeedback(branchesImportStatus, branchesImportDetails);
+    importBranchesBtn.disabled = true;
+    branchesImportStatus.textContent = "Importando sucursales...";
+    const result = await importBranchesFromExcel(file);
+    renderImportFeedback(branchesImportStatus, branchesImportDetails, result, "sucursales");
+    await loadClients({ clearSelectionWhenMissing: false });
+  } catch (error) {
+    branchesImportStatus.textContent = error.message;
+    branchesImportDetails.classList.add("hidden");
+  } finally {
+    importBranchesBtn.disabled = false;
   }
 });
 
@@ -3536,8 +4425,13 @@ applyStatsFiltersBtn.addEventListener("click", async () => {
 });
 
 resetStatsFiltersBtn.addEventListener("click", async () => {
+  statsExecutiveFilter.value = "todos";
   statsDateFrom.value = "";
   statsDateTo.value = "";
+  await loadVisitsStats();
+});
+
+statsExecutiveFilter.addEventListener("change", async () => {
   await loadVisitsStats();
 });
 
@@ -3640,6 +4534,11 @@ addCompanyBtn.addEventListener("click", () => {
   openCreateScreen();
 });
 
+addVisitRuleBtn.addEventListener("click", () => {
+  currentVisitRules.push(createEmptyVisitRule());
+  renderVisitRulesEditor();
+});
+
 addBranchBtn.addEventListener("click", () => {
   openBranchCreateScreen();
 });
@@ -3660,6 +4559,89 @@ showDetailOpportunitiesBtn.addEventListener("click", () => {
 showDetailVisitsBtn.addEventListener("click", () => {
   detailSection = "visits";
   renderDetailSectionNav();
+});
+
+newUserBitrixSearch.addEventListener("change", syncBitrixUserSelectionFromSearch);
+newUserBitrixSearch.addEventListener("input", () => {
+  renderBitrixSearchDropdown(
+    newUserBitrixOptions,
+    bitrixDirectory.users,
+    newUserBitrixSearch.value,
+    getBitrixUsersEmptyText(newUserBitrixSearch.value)
+  );
+  if (!newUserBitrixSearch.value.trim()) {
+    newUserBitrixId.value = "";
+  }
+});
+newUserBitrixSearch.addEventListener("focus", () => {
+  renderBitrixSearchDropdown(
+    newUserBitrixOptions,
+    bitrixDirectory.users,
+    newUserBitrixSearch.value,
+    getBitrixUsersEmptyText(newUserBitrixSearch.value)
+  );
+});
+
+editBitrixCompanySearch.addEventListener("change", syncBitrixCompanySelectionFromSearch);
+editBitrixCompanySearch.addEventListener("input", async () => {
+  renderBitrixSearchDropdown(
+    editBitrixCompanyOptions,
+    bitrixCompanySearchResults.length ? bitrixCompanySearchResults : bitrixDirectory.companies,
+    editBitrixCompanySearch.value,
+    getBitrixCompaniesEmptyText(editBitrixCompanySearch.value)
+  );
+  if (!editBitrixCompanySearch.value.trim()) {
+    editBitrixCompanyId.value = "";
+    bitrixCompanySearchResults = [];
+    renderBitrixDirectoryDatalists();
+    return;
+  }
+  await searchBitrixCompaniesRemote(editBitrixCompanySearch.value);
+});
+editBitrixCompanySearch.addEventListener("focus", () => {
+  bitrixCompanySearchResults = [];
+  renderBitrixSearchDropdown(
+    editBitrixCompanyOptions,
+    bitrixDirectory.companies,
+    editBitrixCompanySearch.value,
+    getBitrixCompaniesEmptyText(editBitrixCompanySearch.value)
+  );
+});
+
+newUserBitrixOptions.addEventListener("click", (event) => {
+  const option = event.target.closest(".bitrix-search-option");
+  if (!option) return;
+
+  newUserBitrixSearch.value = option.dataset.label || "";
+  newUserBitrixId.value = option.dataset.id || "";
+  closeBitrixSearchDropdown(newUserBitrixOptions);
+});
+
+editBitrixCompanyOptions.addEventListener("click", (event) => {
+  const option = event.target.closest(".bitrix-search-option");
+  if (!option) return;
+
+  editBitrixCompanySearch.value = option.dataset.label || "";
+  editBitrixCompanyId.value = option.dataset.id || "";
+  mergeBitrixCompanies([
+    {
+      id: option.dataset.id || "",
+      label: option.dataset.label || "",
+      title: option.dataset.label ? option.dataset.label.split(" · ")[0] : option.dataset.label || ""
+    }
+  ]);
+  bitrixCompanySearchResults = [];
+  closeBitrixSearchDropdown(editBitrixCompanyOptions);
+});
+
+document.addEventListener("click", (event) => {
+  if (!newUserBitrixSearch.contains(event.target) && !newUserBitrixOptions.contains(event.target)) {
+    closeBitrixSearchDropdown(newUserBitrixOptions);
+  }
+
+  if (!editBitrixCompanySearch.contains(event.target) && !editBitrixCompanyOptions.contains(event.target)) {
+    closeBitrixSearchDropdown(editBitrixCompanyOptions);
+  }
 });
 
 cancelOpportunityEditBtn.addEventListener("click", () => {
@@ -3689,6 +4671,7 @@ pipelineSearchInput.addEventListener("input", () => {
 
 userCreateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  syncBitrixUserSelectionFromSearch();
   createUserBtn.disabled = true;
   createUserStatus.textContent = userFormMode === "edit" ? "Guardando..." : "Creando...";
 
@@ -3697,6 +4680,7 @@ userCreateForm.addEventListener("submit", async (event) => {
       name: newUserName.value.trim(),
       email: newUserEmail.value.trim(),
       role: newUserRole.value,
+      bitrixUserId: newUserBitrixId.value.trim(),
       password: newUserPassword.value
     };
 
@@ -3722,6 +4706,171 @@ userCreateForm.addEventListener("submit", async (event) => {
 cancelUserEditBtn.addEventListener("click", () => {
   createUserStatus.textContent = "";
   resetUserForm();
+});
+
+saveBitrixWebhookBtn.addEventListener("click", async () => {
+  saveBitrixWebhookBtn.disabled = true;
+  bitrixUsersStatus.textContent = "Guardando webhook...";
+
+  try {
+    const result = await saveBitrixConfig(bitrixWebhookUrl.value.trim());
+    bitrixWebhookUrl.value = result.webhookUrl || bitrixWebhookUrl.value.trim();
+    try {
+      const bitrixResponse = await fetch("/api/bitrix/options");
+      const bitrixData = await bitrixResponse.json();
+      if (bitrixResponse.ok) {
+        bitrixDirectory = {
+          users: bitrixData.users || [],
+          companies: bitrixData.companies || []
+        };
+        bitrixCompanySearchResults = [];
+        bitrixDirectoryPermissions = bitrixData.permissions || {
+          users: true,
+          companies: true
+        };
+        bitrixDirectoryErrors = bitrixData.errors || {
+          users: "",
+          companies: ""
+        };
+        renderBitrixDirectoryDatalists();
+      }
+    } catch (_error) {
+      // No bloqueamos la pantalla por un refresh fallido del directorio.
+    }
+    bitrixUsersStatus.textContent = "Webhook guardado correctamente";
+  } catch (error) {
+    bitrixUsersStatus.textContent = error.message;
+  } finally {
+    saveBitrixWebhookBtn.disabled = false;
+  }
+});
+
+bitrixUsersPreviewForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  loadBitrixUsersBtn.disabled = true;
+  bitrixUsersStatus.textContent = "Consultando Bitrix...";
+
+  try {
+    const webhook = bitrixWebhookUrl.value.trim();
+    const savedConfig = await saveBitrixConfig(webhook);
+    const normalizedWebhook = savedConfig.webhookUrl || webhook;
+    bitrixWebhookUrl.value = normalizedWebhook;
+    const [usersResult, mappingsResult] = await Promise.all([
+      previewBitrixUsers(normalizedWebhook),
+      previewBitrixMappings(normalizedWebhook)
+    ]);
+
+    bitrixPreviewUsers = Array.isArray(usersResult.users) ? usersResult.users : [];
+    bitrixUserMappings = Array.isArray(mappingsResult.userMappings) ? mappingsResult.userMappings : [];
+    bitrixClientMappings = Array.isArray(mappingsResult.clientMappings) ? mappingsResult.clientMappings : [];
+    bitrixCounts = mappingsResult.counts || bitrixCounts;
+    bitrixPermissions = mappingsResult.permissions || bitrixPermissions;
+    bitrixErrors = mappingsResult.errors || bitrixErrors;
+    bitrixDirectory = {
+      users: (bitrixPreviewUsers || [])
+        .filter((user) => user.active)
+        .map((user) => ({
+          id: String(user.id || ""),
+          label: `${user.fullName}${user.email ? ` · ${user.email}` : ""}${user.id ? ` · ${user.id}` : ""}`.trim(),
+          name: user.fullName,
+          email: user.email || ""
+        })),
+      companies: Array.isArray(mappingsResult.bitrixCompanies)
+        ? mappingsResult.bitrixCompanies.map((company) => ({
+            id: String(company.id || ""),
+            label: `${company.title}${company.id ? ` · ${company.id}` : ""}`.trim(),
+            title: company.title
+          }))
+        : bitrixDirectory.companies
+    };
+    bitrixCompanySearchResults = [];
+    bitrixDirectoryPermissions = {
+      users: true,
+      companies: Boolean(bitrixPermissions.companies)
+    };
+    bitrixDirectoryErrors = {
+      users: "",
+      companies: bitrixErrors.companies || ""
+    };
+    renderBitrixDirectoryDatalists();
+
+    renderBitrixUsersPreview();
+    renderBitrixMappings();
+    const warnings = [];
+    if (!bitrixPermissions.companies && bitrixErrors.companies) warnings.push(`Compañías: ${bitrixErrors.companies}`);
+    if (!bitrixPermissions.leads && bitrixErrors.leads) warnings.push(`Leads: ${bitrixErrors.leads}`);
+    bitrixUsersStatus.textContent = warnings.length
+      ? `${usersResult.count || bitrixPreviewUsers.length} usuarios Bitrix cargados. CRM sin permiso: ${warnings.join(" · ")}`
+      : `${usersResult.count || bitrixPreviewUsers.length} usuarios Bitrix y mapeos actualizados`;
+  } catch (error) {
+    bitrixPreviewUsers = [];
+    bitrixUserMappings = [];
+    bitrixClientMappings = [];
+    bitrixCounts = {
+      localUsers: 0,
+      localClients: 0,
+      bitrixUsers: 0,
+      bitrixCompanies: 0,
+      bitrixLeads: 0
+    };
+    bitrixPermissions = {
+      users: false,
+      companies: false,
+      leads: false
+    };
+    bitrixErrors = {
+      companies: "",
+      leads: ""
+    };
+    renderBitrixUsersPreview();
+    renderBitrixMappings();
+    bitrixUsersStatus.textContent = error.message;
+  } finally {
+    loadBitrixUsersBtn.disabled = false;
+  }
+});
+
+bitrixTaskTestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  createBitrixTaskBtn.disabled = true;
+  bitrixTaskStatus.textContent = "Creando tarea en Bitrix...";
+
+  try {
+    const result = await createBitrixTaskTest({
+      webhookUrl: bitrixWebhookUrl.value.trim(),
+      title: bitrixTaskTitle.value.trim(),
+      description: bitrixTaskDescription.value.trim(),
+      responsibleId: bitrixTaskResponsible.value
+    });
+    bitrixTaskStatus.textContent = result.task?.id
+      ? `Tarea creada en Bitrix con ID ${result.task.id}`
+      : "Tarea creada en Bitrix";
+  } catch (error) {
+    bitrixTaskStatus.textContent = error.message;
+  } finally {
+    createBitrixTaskBtn.disabled = false;
+  }
+});
+
+visitRulesFeatureForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  saveVisitRulesFeatureBtn.disabled = true;
+  visitRulesFeatureStatus.textContent = "Guardando...";
+
+  try {
+    const result = await saveFeatureSettings({
+      visitRulesEnabled: visitRulesFeatureToggle.checked
+    });
+    visitRulesFeatureEnabled = Boolean(result?.featureFlags?.visitRulesEnabled ?? visitRulesFeatureToggle.checked);
+    applyFeatureFlagsUi();
+    visitRulesFeatureStatus.textContent = visitRulesFeatureEnabled
+      ? "Reglas automáticas activadas"
+      : "Reglas automáticas desactivadas";
+  } catch (error) {
+    visitRulesFeatureStatus.textContent = error.message;
+  } finally {
+    saveVisitRulesFeatureBtn.disabled = false;
+  }
 });
 
 sectorForm.addEventListener("submit", async (event) => {
@@ -3787,6 +4936,29 @@ meetingReasonForm.addEventListener("submit", async (event) => {
 
 cancelMeetingReasonEditBtn.addEventListener("click", () => {
   resetMeetingReasonForm();
+});
+
+contactRoleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  saveContactRoleBtn.disabled = true;
+  contactRoleStatus.textContent = "Guardando...";
+
+  try {
+    await saveContactRole({
+      name: contactRoleName.value.trim()
+    });
+    await loadContactRolesConfig();
+    resetContactRoleForm();
+    contactRoleStatus.textContent = "Función guardada";
+  } catch (error) {
+    contactRoleStatus.textContent = error.message;
+  } finally {
+    saveContactRoleBtn.disabled = false;
+  }
+});
+
+cancelContactRoleEditBtn.addEventListener("click", () => {
+  resetContactRoleForm();
 });
 
 [editFixedFire, editExtinguishers, editWorks].forEach((checkbox) => {
@@ -3882,6 +5054,7 @@ followUpForm.addEventListener("submit", async (event) => {
 
 companyEditForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  syncBitrixCompanySelectionFromSearch();
 
   if (!editSector.value) {
     editCompanyStatus.textContent = "Seleccioná un sector válido.";
@@ -3930,11 +5103,32 @@ companyEditForm.addEventListener("submit", async (event) => {
     notes: editNotes.value.trim()
   };
 
+  if (visitRulesFeatureEnabled) {
+    payload.visitRules = currentVisitRules.map((rule) => ({
+      periodicityDays: Number(rule.periodicityDays || 0),
+      contactRole: String(rule.contactRole || "").trim(),
+      objective: String(rule.objective || "").trim()
+    }));
+
+    if (
+      payload.visitRules.some(
+        (rule) => !Number.isInteger(rule.periodicityDays) || rule.periodicityDays <= 0 || !rule.contactRole || !rule.objective
+      )
+    ) {
+      editCompanyStatus.textContent = "Completá correctamente todas las reglas de visita.";
+      return;
+    }
+  }
+
   if (editEntityType !== "branch") {
     payload.companyType = editCompanyType.value;
     payload.country = editCountry.value;
     payload.accountStage = editAccountStage.value;
+    payload.bitrixLeadId = editBitrixLeadId.value.trim();
+    payload.bitrixCompanyId = editBitrixCompanyId.value.trim();
     payload.executiveUserId = editManager.value ? Number(editManager.value) : null;
+  } else {
+    payload.bitrixCompanyId = editBitrixCompanyId.value.trim();
   }
 
   saveCompanyBtn.disabled = true;
@@ -4004,7 +5198,9 @@ meetingForm.addEventListener("submit", async (event) => {
     opportunities: meetingOpportunities.value.trim(),
     substituteRecovery: meetingSubstituteRecovery.value.trim(),
     globalContacts: meetingGlobalContacts.value.trim(),
-    serviceStatus: meetingServiceStatus.value.trim()
+    serviceHealthStatus: meetingServiceHealthStatus.value.trim(),
+    serviceStatus: meetingServiceStatus.value.trim(),
+    complaintBitrixResponsibleId: meetingComplaintBitrixResponsible.value
   };
 
   if (
@@ -4019,6 +5215,11 @@ meetingForm.addEventListener("submit", async (event) => {
     !payload.contactRole
   ) {
     meetingStatus.textContent = "Completá tipo, motivo, objetivo, fecha, modalidad, alcance, participantes, contacto y función.";
+    return;
+  }
+
+  if (payload.serviceStatus && !payload.complaintBitrixResponsibleId) {
+    meetingStatus.textContent = "Seleccioná un responsable Bitrix para el reclamo.";
     return;
   }
 
@@ -4068,7 +5269,8 @@ loginForm.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: loginEmail.value.trim(),
-        password: loginPassword.value
+        password: loginPassword.value,
+        rememberMe: loginRemember.checked
       })
     });
     const data = await response.json();
@@ -4077,7 +5279,9 @@ loginForm.addEventListener("submit", async (event) => {
     }
 
     currentUser = data.user;
+    visitRulesFeatureEnabled = Boolean(data?.featureFlags?.visitRulesEnabled ?? true);
     updateAuthUi();
+    applyFeatureFlagsUi();
     loginStatus.textContent = "";
     loginPassword.value = "";
     showScreen("list");
@@ -4101,6 +5305,7 @@ loginForm.addEventListener("submit", async (event) => {
 logoutBtn.addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });
   currentUser = null;
+  visitRulesFeatureEnabled = true;
   selectedId = null;
   selectedClient = null;
   clients = [];
@@ -4108,6 +5313,7 @@ logoutBtn.addEventListener("click", async () => {
   calendarMeetings = [];
   pipelineOpportunities = [];
   resetOpportunityForm();
+  applyFeatureFlagsUi();
   resetFollowUpForm();
   updateAuthUi();
   showScreen("list");

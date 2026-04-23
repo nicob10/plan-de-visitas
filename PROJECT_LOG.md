@@ -210,3 +210,18 @@ curl -I https://visitasms.online
   - no se borran las reglas ya cargadas
   - simplemente dejan de verse en UI y no se ejecuta la lógica automática de creación/regeneración
   - las estadísticas de reglas quedan ocultas
+
+### 2026-04-23
+
+- Se agregan assets de identidad para navegador e instalación como app:
+  - `favicon.ico`
+  - `favicon.svg`
+  - `apple-touch-icon.png`
+  - `app-icon-192.png`
+  - `app-icon-512.png`
+  - `site.webmanifest`
+- El ícono usa una composición alegórica a `Plan de Visitas`:
+  - fondo rojo institucional
+  - ruta de visitas con nodos
+  - calendario/check de cumplimiento
+- Se conectan los íconos en el `head` del HTML con soporte para favicon, Apple touch icon y manifest web app.

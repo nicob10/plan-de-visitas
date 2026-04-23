@@ -1,0 +1,24 @@
+{
+  "name": "Plan de Visitas Maxiseguridad",
+  "short_name": "Plan Visitas",
+  "description": "Gestión estratégica de visitas comerciales y reuniones de clientes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f3f3",
+  "theme_color": "#8f1519",
+  "icons": [
+    {
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -349,6 +349,17 @@
                 <input id="newUserPassword" type="password" minlength="6" required />
               </label>
             </div>
+            <fieldset class="settings-fieldset permissions-fieldset">
+              <legend>Permisos sobre compañías y sucursales</legend>
+              <div class="permissions-grid">
+                <label class="check-card"><input id="permCreateClients" type="checkbox" checked /> Crear compañías</label>
+                <label class="check-card"><input id="permEditClients" type="checkbox" checked /> Editar compañías</label>
+                <label class="check-card"><input id="permHideClients" type="checkbox" checked /> Ocultar compañías</label>
+                <label class="check-card"><input id="permCreateBranches" type="checkbox" checked /> Crear sucursales</label>
+                <label class="check-card"><input id="permEditBranches" type="checkbox" checked /> Editar sucursales</label>
+                <label class="check-card"><input id="permHideBranches" type="checkbox" checked /> Ocultar sucursales</label>
+              </div>
+            </fieldset>
             <div class="edit-actions">
               <button id="createUserBtn" class="primary-btn" type="submit">Crear usuario</button>
               <span id="createUserStatus" aria-live="polite"></span>
@@ -362,6 +373,7 @@
                   <th>Email</th>
                   <th>Rol</th>
                   <th>Bitrix User ID</th>
+                  <th>Permisos</th>
                   <th>Acción</th>
                 </tr>
               </thead>
@@ -1293,6 +1305,10 @@
                 <div id="editBitrixCompanyOptions" class="bitrix-search-dropdown hidden"></div>
                 <input id="editBitrixCompanyId" type="hidden" />
                 <input id="editBitrixLeadId" type="hidden" />
+              </label>
+              <label id="editManualBranchIdGroup" class="hidden">
+                ID_sucursal manual
+                <input id="editManualBranchId" type="text" placeholder="Definir ID interno / externo" />
               </label>
               <label>
                 Ejecutivo

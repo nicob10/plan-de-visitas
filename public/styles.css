@@ -1404,6 +1404,47 @@ tr.active {
   color: var(--muted);
 }
 
+.settings-fieldset {
+  margin: 0.75rem 0 0.35rem;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid #ead3d3;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.settings-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.check-card {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #efdada;
+  border-radius: 12px;
+  background: rgba(255, 249, 249, 0.94);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.check-card input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
 .edit-services {
   display: flex;
   flex-wrap: wrap;
@@ -2240,6 +2281,10 @@ tr.active {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .permissions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2310,6 +2355,7 @@ tr.active {
   .kpi-grid,
   .meeting-body,
   .edit-grid,
+  .permissions-grid,
   .calendar-grid,
   .opportunity-kpis,
   .pipeline-summary-grid {

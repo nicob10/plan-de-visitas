@@ -462,6 +462,12 @@ async function initDb() {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT '${USER_ROLES.EXECUTIVE}',
+      can_create_clients BOOLEAN NOT NULL DEFAULT TRUE,
+      can_edit_clients BOOLEAN NOT NULL DEFAULT TRUE,
+      can_hide_clients BOOLEAN NOT NULL DEFAULT TRUE,
+      can_create_branches BOOLEAN NOT NULL DEFAULT TRUE,
+      can_edit_branches BOOLEAN NOT NULL DEFAULT TRUE,
+      can_hide_branches BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -497,6 +503,8 @@ async function initDb() {
       name TEXT NOT NULL,
       billing_2025 NUMERIC(14, 2) NOT NULL DEFAULT 0,
       bitrix_company_id TEXT NOT NULL DEFAULT '',
+      manual_branch_id TEXT NOT NULL DEFAULT '',
+      is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
       sector TEXT NOT NULL,
       manager TEXT NOT NULL,
       risk TEXT NOT NULL CHECK (risk IN ('Bajo', 'Medio', 'Alto')),
@@ -525,6 +533,7 @@ async function initDb() {
 
     CREATE TABLE IF NOT EXISTS meetings (
       id SERIAL PRIMARY KEY,
+      visit_id TEXT NOT NULL DEFAULT '',
       client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       branch_id INTEGER REFERENCES client_branches(id) ON DELETE CASCADE,
       opportunity_id INTEGER,
@@ -662,6 +671,18 @@ async function initDb() {
   await query(`
     ALTER TABLE users
       ADD COLUMN IF NOT EXISTS bitrix_user_id TEXT NOT NULL DEFAULT '';
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_create_clients BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_edit_clients BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_hide_clients BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_create_branches BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_edit_branches BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS can_hide_branches BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE clients
       ADD COLUMN IF NOT EXISTS executive_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE clients
@@ -693,9 +714,15 @@ async function initDb() {
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS bitrix_company_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE client_branches
+      ADD COLUMN IF NOT EXISTS manual_branch_id TEXT NOT NULL DEFAULT '';
+    ALTER TABLE client_branches
+      ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE client_branches
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS visit_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES client_branches(id) ON DELETE CASCADE;
     ALTER TABLE meetings
@@ -743,6 +770,7 @@ async function initDb() {
     ALTER TABLE meetings
       ADD COLUMN IF NOT EXISTS automatic_rule_entity_id INTEGER;
     CREATE INDEX IF NOT EXISTS idx_client_branches_executive ON client_branches(executive_user_id);
+    CREATE INDEX IF NOT EXISTS idx_client_branches_hidden ON client_branches(client_id, is_hidden);
     CREATE INDEX IF NOT EXISTS idx_meetings_opportunity ON meetings(opportunity_id);
     CREATE INDEX IF NOT EXISTS idx_meetings_deleted ON meetings(is_deleted, deleted_at);
     CREATE INDEX IF NOT EXISTS idx_meetings_automatic_rule ON meetings(automatic_rule_id, is_deleted, status);
@@ -817,6 +845,36 @@ async function initDb() {
     UPDATE meetings
     SET contact_name = participants
     WHERE COALESCE(contact_name, '') = '' AND COALESCE(participants, '') <> '';
+  `);
+
+  await query(`
+    UPDATE meetings
+    SET visit_id = 'VIS-' || LPAD(id::text, 6, '0')
+    WHERE COALESCE(visit_id, '') = '';
+  `);
+
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_meetings_visit_id ON meetings(visit_id);
+  `);
+
+  await query(`
+    CREATE OR REPLACE FUNCTION set_meetings_visit_id()
+    RETURNS trigger AS $$
+    BEGIN
+      IF COALESCE(NEW.visit_id, '') = '' THEN
+        NEW.visit_id := 'VIS-' || LPAD(NEW.id::text, 6, '0');
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+  `);
+
+  await query(`
+    DROP TRIGGER IF EXISTS trg_meetings_visit_id ON meetings;
+    CREATE TRIGGER trg_meetings_visit_id
+    BEFORE INSERT ON meetings
+    FOR EACH ROW
+    EXECUTE FUNCTION set_meetings_visit_id();
   `);
 
   await query(`

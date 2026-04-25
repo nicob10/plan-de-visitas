@@ -72,6 +72,12 @@ const newUserBitrixSearch = document.getElementById("newUserBitrixSearch");
 const newUserBitrixOptions = document.getElementById("newUserBitrixOptions");
 const newUserBitrixId = document.getElementById("newUserBitrixId");
 const newUserPassword = document.getElementById("newUserPassword");
+const permCreateClients = document.getElementById("permCreateClients");
+const permEditClients = document.getElementById("permEditClients");
+const permHideClients = document.getElementById("permHideClients");
+const permCreateBranches = document.getElementById("permCreateBranches");
+const permEditBranches = document.getElementById("permEditBranches");
+const permHideBranches = document.getElementById("permHideBranches");
 const createUserBtn = document.getElementById("createUserBtn");
 const createUserStatus = document.getElementById("createUserStatus");
 const userFormTitle = document.getElementById("userFormTitle");
@@ -277,6 +283,8 @@ const editBitrixLeadId = document.getElementById("editBitrixLeadId");
 const editBitrixCompanySearch = document.getElementById("editBitrixCompanySearch");
 const editBitrixCompanyId = document.getElementById("editBitrixCompanyId");
 const editBitrixCompanyOptions = document.getElementById("editBitrixCompanyOptions");
+const editManualBranchIdGroup = document.getElementById("editManualBranchIdGroup");
+const editManualBranchId = document.getElementById("editManualBranchId");
 const editManager = document.getElementById("editManager");
 const editRisk = document.getElementById("editRisk");
 const editSegment = document.getElementById("editSegment");
@@ -458,6 +466,60 @@ function canAccessSettings() {
   return !!currentUser?.canManageSettings || (email === "nicolas@maxiseguridad.com" && name === "Nicolas Beguelman");
 }
 
+function getCurrentEntityPermissions() {
+  return {
+    createClients: currentUser?.permissions?.createClients !== false,
+    editClients: currentUser?.permissions?.editClients !== false,
+    hideClients: currentUser?.permissions?.hideClients !== false,
+    createBranches: currentUser?.permissions?.createBranches !== false,
+    editBranches: currentUser?.permissions?.editBranches !== false,
+    hideBranches: currentUser?.permissions?.hideBranches !== false
+  };
+}
+
+function getUserPermissionsPayload() {
+  return {
+    createClients: !!permCreateClients?.checked,
+    editClients: !!permEditClients?.checked,
+    hideClients: !!permHideClients?.checked,
+    createBranches: !!permCreateBranches?.checked,
+    editBranches: !!permEditBranches?.checked,
+    hideBranches: !!permHideBranches?.checked
+  };
+}
+
+function applyUserPermissionsForm(permissions = {}) {
+  const normalized = {
+    createClients: permissions.createClients !== false,
+    editClients: permissions.editClients !== false,
+    hideClients: permissions.hideClients !== false,
+    createBranches: permissions.createBranches !== false,
+    editBranches: permissions.editBranches !== false,
+    hideBranches: permissions.hideBranches !== false
+  };
+  permCreateClients.checked = normalized.createClients;
+  permEditClients.checked = normalized.editClients;
+  permHideClients.checked = normalized.hideClients;
+  permCreateBranches.checked = normalized.createBranches;
+  permEditBranches.checked = normalized.editBranches;
+  permHideBranches.checked = normalized.hideBranches;
+}
+
+function summarizePermissions(permissions = {}) {
+  const companyPermissions = [];
+  const branchPermissions = [];
+  if (permissions.createClients !== false) companyPermissions.push("crear");
+  if (permissions.editClients !== false) companyPermissions.push("editar");
+  if (permissions.hideClients !== false) companyPermissions.push("ocultar");
+  if (permissions.createBranches !== false) branchPermissions.push("crear");
+  if (permissions.editBranches !== false) branchPermissions.push("editar");
+  if (permissions.hideBranches !== false) branchPermissions.push("ocultar");
+  return [
+    `Compañías: ${companyPermissions.length ? companyPermissions.join(", ") : "sin acceso"}`,
+    `Sucursales: ${branchPermissions.length ? branchPermissions.join(", ") : "sin acceso"}`
+  ].join(" · ");
+}
+
 function notifyError(message) {
   window.alert(message);
 }
@@ -471,6 +533,7 @@ function updateAuthUi() {
   currentUserBadge.innerHTML = loggedIn
     ? `<strong>${currentUser.name}</strong><small>${currentUser.role}</small>`
     : "";
+  applyEntityPermissionsUi();
 }
 
 function applyFeatureFlagsUi() {
@@ -480,6 +543,11 @@ function applyFeatureFlagsUi() {
   if (visitRulesFeatureToggle) {
     visitRulesFeatureToggle.checked = !!visitRulesFeatureEnabled;
   }
+}
+
+function applyEntityPermissionsUi() {
+  const permissions = getCurrentEntityPermissions();
+  addCompanyBtn.classList.toggle("hidden", !currentUser || !permissions.createClients);
 }
 
 function syncModalState() {
@@ -2428,6 +2496,7 @@ function renderMeetingCard(meeting) {
   );
 
   const meta = [];
+  if (meeting.visitId) meta.push(`ID visita: ${meeting.visitId}`);
   if (meeting.branchId && meeting.branchName) meta.push(`Sucursal: ${meeting.branchName}`);
   const linkedOpportunityTitle =
     meeting.opportunityTitle ||
@@ -2492,6 +2561,7 @@ function renderCompactMeetingListItem(meeting) {
       <p class="meeting-date">${formatDate(meeting.scheduledFor)}</p>
       <h4 class="meeting-list-item-title">${meeting.subject}</h4>
       <p class="meeting-list-item-meta">${[
+        meeting.visitId ? `ID visita: ${meeting.visitId}` : "",
         meeting.kindLabel || typeMeta.label,
         meeting.opportunityId
           ? `Oportunidad: ${
@@ -2544,14 +2614,22 @@ function renderCompactMeetingListItem(meeting) {
 
 function renderBranchCard(branch) {
   const article = document.createElement("article");
+  const canEditBranch = getCurrentEntityPermissions().editBranches;
   article.className = "meeting-card";
   article.innerHTML = `
     <div class="meeting-card-head">
       <div>
         <h4 class="meeting-title">${branch.name}</h4>
-        <p class="meeting-meta">${branch.sector} · Segmento ${branch.segment} · Riesgo ${branch.risk}</p>
+        <p class="meeting-meta">${[
+          branch.manualBranchId ? `ID sucursal: ${branch.manualBranchId}` : "",
+          branch.sector,
+          `Segmento ${branch.segment}`,
+          `Riesgo ${branch.risk}`
+        ]
+          .filter(Boolean)
+          .join(" · ")}</p>
       </div>
-      <button class="secondary-btn edit-branch-btn" type="button">Editar sucursal</button>
+      ${canEditBranch ? '<button class="secondary-btn edit-branch-btn" type="button">Editar sucursal</button>' : ""}
     </div>
     <div class="service-row">${renderServices(branch)}</div>
     <p class="meeting-objective">Ejecutivo: ${branch.executiveName || "Sin asignar"}</p>
@@ -2565,11 +2643,14 @@ function renderBranchCard(branch) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
-  article.querySelector(".edit-branch-btn").addEventListener("click", (event) => {
-    event.stopPropagation();
-    selectedBranchView = branch;
-    openBranchEditScreen(branch);
-  });
+  const editBranchButton = article.querySelector(".edit-branch-btn");
+  if (editBranchButton) {
+    editBranchButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedBranchView = branch;
+      openBranchEditScreen(branch);
+    });
+  }
 
   return article;
 }
@@ -2718,7 +2799,7 @@ function openMeetingDetailScreen(meeting) {
   meetingMode = "edit";
   editingMeetingId = meeting?.id || null;
   meetingScreenTitle.textContent = `Reunión · ${selectedClient.name}`;
-  meetingScreenMeta.textContent = "Detalle completo de la reunión.";
+  meetingScreenMeta.textContent = meeting?.visitId ? `ID visita: ${meeting.visitId} · Detalle completo de la reunión.` : "Detalle completo de la reunión.";
   meetingForm.classList.add("hidden");
   meetingDetailView.classList.remove("hidden");
   editMeetingFromDetailBtn.classList.remove("hidden");
@@ -2752,9 +2833,20 @@ function renderDetail() {
 
   backToList.textContent = selectedBranchView ? "← Volver a la casa matriz" : "← Volver al listado";
   goToEditBtn.textContent = selectedBranchView ? "Editar sucursal" : "Editar compañía";
+  const permissions = getCurrentEntityPermissions();
+  const canEditCurrentEntity = selectedBranchView ? permissions.editBranches : permissions.editClients;
+  goToEditBtn.classList.toggle("hidden", !canEditCurrentEntity);
   detailCompanyName.textContent = selectedBranchView ? `${selectedBranchView.name} · ${selectedClient.name}` : selectedClient.name;
   detailMeta.textContent = selectedBranchView
-    ? `${currentEntity.sector} · Ejecutivo: ${currentEntity.executiveName || currentEntity.manager} · Riesgo ${currentEntity.risk}${supervisorSummary ? ` · ${supervisorSummary}` : ""}`
+    ? `${[
+        currentEntity.manualBranchId ? `ID sucursal: ${currentEntity.manualBranchId}` : "",
+        currentEntity.sector,
+        `Ejecutivo: ${currentEntity.executiveName || currentEntity.manager}`,
+        `Riesgo ${currentEntity.risk}`,
+        supervisorSummary
+      ]
+        .filter(Boolean)
+        .join(" · ")}`
     : `${currentEntity.sector} · ${currentEntity.companyType} · ${currentEntity.country} · ${currentEntity.accountStage} · Ejecutivo: ${currentEntity.executiveName || currentEntity.manager} · Riesgo ${currentEntity.risk}${supervisorSummary ? ` · ${supervisorSummary}` : ""}`;
   detailSegment.textContent = `Segmento ${currentEntity.segment}`;
   detailServices.innerHTML = renderServices(currentEntity);
@@ -2807,7 +2899,7 @@ function renderDetail() {
     return;
   }
 
-  addBranchBtn.classList.remove("hidden");
+  addBranchBtn.classList.toggle("hidden", !permissions.createBranches);
   if (!selectedClient.branches?.length) {
     branchList.innerHTML = `
       <article class="empty-meeting-state">
@@ -2837,6 +2929,7 @@ function renderUsers() {
       <td>${user.email}</td>
       <td>${user.role}</td>
       <td>${user.bitrixUserId || "-"}</td>
+      <td>${summarizePermissions(user.permissions || {})}</td>
       <td>
         <div class="table-actions">
           <button class="secondary-btn edit-user-btn" type="button">Editar</button>
@@ -3373,6 +3466,7 @@ function resetUserForm() {
   newUserBitrixId.value = "";
   closeBitrixSearchDropdown(newUserBitrixOptions);
   newUserPassword.value = "";
+  applyUserPermissionsForm();
   if (userRoles.length) {
     newUserRole.value = userRoles[0];
   }
@@ -3391,6 +3485,7 @@ function startUserEdit(user) {
   newUserRole.value = user.role;
   newUserBitrixSearch.value = getBitrixUserLabel(user.bitrixUserId || "");
   newUserBitrixId.value = user.bitrixUserId || "";
+  applyUserPermissionsForm(user.permissions || {});
   closeBitrixSearchDropdown(newUserBitrixOptions);
   newUserPassword.value = "";
   createUserStatus.textContent = "";
@@ -3427,6 +3522,7 @@ function fillEditForm(client) {
   editBitrixCompanySearch.value = getBitrixCompanyLabel(entity?.bitrixCompanyId || "");
   editBitrixLeadId.value = entity?.bitrixLeadId || "";
   editBitrixCompanyId.value = entity?.bitrixCompanyId || "";
+  editManualBranchId.value = entity?.manualBranchId || "";
   closeBitrixSearchDropdown(editBitrixCompanyOptions);
   editRisk.value = entity?.risk || "Bajo";
   editSegment.value = entity?.segment || "C";
@@ -3451,6 +3547,7 @@ function fillEditForm(client) {
   document.getElementById("editCompanyTypeGroup").classList.toggle("hidden", editEntityType === "branch");
   document.getElementById("editCountryGroup").classList.toggle("hidden", editEntityType === "branch");
   document.getElementById("editAccountStageGroup").classList.toggle("hidden", editEntityType === "branch");
+  editManualBranchIdGroup.classList.toggle("hidden", editEntityType !== "branch");
   editBitrixCompanySearch.closest("label").classList.toggle("hidden", false);
   syncSupervisorVisibility();
   renderAccountRoleSummary();
@@ -3510,6 +3607,10 @@ function fillMeetingForm(meeting) {
 }
 
 function openCreateScreen() {
+  if (!getCurrentEntityPermissions().createClients) {
+    notifyError("No tenés permisos para crear compañías.");
+    return;
+  }
   editMode = "create";
   editEntityType = "client";
   editingBranchId = null;
@@ -3522,23 +3623,33 @@ function openCreateScreen() {
 
 function openEditScreen() {
   if (!selectedClient) return;
+  if (!getCurrentEntityPermissions().editClients) {
+    notifyError("No tenés permisos para editar compañías.");
+    return;
+  }
   editMode = "edit";
   editEntityType = "client";
   editingBranchId = null;
   editScreenTitle.textContent = `Editar compañía · ${selectedClient.name}`;
   saveCompanyBtn.textContent = "Guardar cambios";
-  hideCompanyBtn.classList.remove("hidden");
+  hideCompanyBtn.textContent = "Ocultar compañía";
+  hideCompanyBtn.classList.toggle("hidden", !getCurrentEntityPermissions().hideClients);
   fillEditForm(selectedClient);
   showScreen("edit");
 }
 
 function openBranchCreateScreen() {
   if (!selectedClient) return;
+  if (!getCurrentEntityPermissions().createBranches) {
+    notifyError("No tenés permisos para crear sucursales.");
+    return;
+  }
   editMode = "create";
   editEntityType = "branch";
   editingBranchId = null;
   editScreenTitle.textContent = `Nueva sucursal · ${selectedClient.name}`;
   saveCompanyBtn.textContent = "Crear sucursal";
+  hideCompanyBtn.textContent = "Ocultar sucursal";
   hideCompanyBtn.classList.add("hidden");
   fillEditForm({
     sector: selectedClient.sector,
@@ -3557,12 +3668,17 @@ function openBranchCreateScreen() {
 }
 
 function openBranchEditScreen(branch) {
+  if (!getCurrentEntityPermissions().editBranches) {
+    notifyError("No tenés permisos para editar sucursales.");
+    return;
+  }
   editMode = "edit";
   editEntityType = "branch";
   editingBranchId = branch.id;
   editScreenTitle.textContent = `Editar sucursal · ${branch.name}`;
   saveCompanyBtn.textContent = "Guardar sucursal";
-  hideCompanyBtn.classList.add("hidden");
+  hideCompanyBtn.textContent = "Ocultar sucursal";
+  hideCompanyBtn.classList.toggle("hidden", !getCurrentEntityPermissions().hideBranches);
   fillEditForm(branch);
   showScreen("edit");
 }
@@ -3596,7 +3712,7 @@ function openMeetingScreen(meeting = null) {
     ? `Editar reunión · ${selectedClient.name}`
     : `Nueva reunión · ${selectedClient.name}`;
   meetingScreenMeta.textContent = meeting
-    ? "Actualizá tipo, estado, participantes, minuta y hallazgos."
+    ? `${meeting?.visitId ? `ID visita: ${meeting.visitId} · ` : ""}Actualizá tipo, estado, participantes, minuta y hallazgos.`
     : "Podés dejarla agendada en una fecha futura o marcarla como realizada si ya ocurrió.";
   saveMeetingBtn.textContent = meeting ? "Guardar cambios" : "Guardar reunión";
   meetingDetailView.classList.add("hidden");
@@ -3904,6 +4020,17 @@ async function hideClient(clientId) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || "No se pudo ocultar la compañía");
+  }
+  return data;
+}
+
+async function hideBranch(clientId, branchId) {
+  const response = await fetch(`/api/clients/${clientId}/branches/${branchId}/hide`, {
+    method: "PATCH"
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || "No se pudo ocultar la sucursal");
   }
   return data;
 }
@@ -4484,18 +4611,32 @@ exportVisitsBtn.addEventListener("click", async () => {
 });
 
 hideCompanyBtn.addEventListener("click", async () => {
-  if (!selectedClient || editEntityType !== "client" || editMode !== "edit") return;
-  const confirmed = window.confirm(`La compañía ${selectedClient.name} se va a ocultar del listado, pero no se va a borrar.`);
+  if (!selectedClient || editMode !== "edit") return;
+  const isBranch = editEntityType === "branch" && selectedBranchView;
+  const targetName = isBranch ? selectedBranchView?.name : selectedClient.name;
+  const targetLabel = isBranch ? "sucursal" : "compañía";
+  const confirmed = window.confirm(`La ${targetLabel} ${targetName} se va a ocultar del listado, pero no se va a borrar.`);
   if (!confirmed) return;
 
   try {
     hideCompanyBtn.disabled = true;
-    await hideClient(selectedClient.id);
-    selectedId = null;
-    selectedClient = null;
-    selectedBranchView = null;
-    await loadClients({ clearSelectionWhenMissing: false });
-    showScreen("list");
+    if (isBranch) {
+      await hideBranch(selectedClient.id, selectedBranchView.id);
+      selectedBranchView = null;
+      await loadClients({ clearSelectionWhenMissing: false });
+      await loadClientDetail(selectedClient.id);
+      renderTable();
+      showScreen("detail");
+      syncUrlWithState("detail");
+    } else {
+      await hideClient(selectedClient.id);
+      selectedId = null;
+      selectedClient = null;
+      selectedBranchView = null;
+      await loadClients({ clearSelectionWhenMissing: false });
+      showScreen("list");
+      syncUrlWithState("list");
+    }
     editCompanyStatus.textContent = "";
   } catch (error) {
     editCompanyStatus.textContent = error.message;
@@ -4681,6 +4822,7 @@ userCreateForm.addEventListener("submit", async (event) => {
       email: newUserEmail.value.trim(),
       role: newUserRole.value,
       bitrixUserId: newUserBitrixId.value.trim(),
+      permissions: getUserPermissionsPayload(),
       password: newUserPassword.value
     };
 
@@ -5129,6 +5271,7 @@ companyEditForm.addEventListener("submit", async (event) => {
     payload.executiveUserId = editManager.value ? Number(editManager.value) : null;
   } else {
     payload.bitrixCompanyId = editBitrixCompanyId.value.trim();
+    payload.manualBranchId = editManualBranchId.value.trim();
   }
 
   saveCompanyBtn.disabled = true;

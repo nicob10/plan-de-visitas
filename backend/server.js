@@ -63,6 +63,22 @@ const SUPERVISOR_ROLE_BY_SERVICE = {
   extinguishers: USER_ROLES.SUPERVISOR_EXT,
   works: USER_ROLES.SUPERVISOR_WORKS
 };
+const ENTITY_PERMISSION_KEYS = {
+  createClients: "can_create_clients",
+  editClients: "can_edit_clients",
+  hideClients: "can_hide_clients",
+  createBranches: "can_create_branches",
+  editBranches: "can_edit_branches",
+  hideBranches: "can_hide_branches"
+};
+const ENTITY_PERMISSION_ERROR_MESSAGES = {
+  createClients: "No tenés permisos para crear compañías",
+  editClients: "No tenés permisos para editar compañías",
+  hideClients: "No tenés permisos para ocultar compañías",
+  createBranches: "No tenés permisos para crear sucursales",
+  editBranches: "No tenés permisos para editar sucursales",
+  hideBranches: "No tenés permisos para ocultar sucursales"
+};
 let meetingTypeOptionsCache = [...MEETING_TYPES];
 let meetingReasonOptionsCache = [...MEETING_REASONS];
 let contactRoleOptionsCache = [];
@@ -99,8 +115,50 @@ function sanitizeUser(row) {
     name: row.name,
     email: row.email,
     role: row.role,
-    bitrixUserId: row.bitrix_user_id || ""
+    bitrixUserId: row.bitrix_user_id || "",
+    permissions: buildUserPermissions(row)
   };
+}
+
+function buildUserPermissions(row) {
+  return {
+    createClients: row?.[ENTITY_PERMISSION_KEYS.createClients] !== false,
+    editClients: row?.[ENTITY_PERMISSION_KEYS.editClients] !== false,
+    hideClients: row?.[ENTITY_PERMISSION_KEYS.hideClients] !== false,
+    createBranches: row?.[ENTITY_PERMISSION_KEYS.createBranches] !== false,
+    editBranches: row?.[ENTITY_PERMISSION_KEYS.editBranches] !== false,
+    hideBranches: row?.[ENTITY_PERMISSION_KEYS.hideBranches] !== false
+  };
+}
+
+function normalizePermissionFlag(value, defaultValue = true) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "si", "sí", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return defaultValue;
+}
+
+function normalizeUserPermissions(payloadPermissions) {
+  return {
+    createClients: normalizePermissionFlag(payloadPermissions?.createClients, true),
+    editClients: normalizePermissionFlag(payloadPermissions?.editClients, true),
+    hideClients: normalizePermissionFlag(payloadPermissions?.hideClients, true),
+    createBranches: normalizePermissionFlag(payloadPermissions?.createBranches, true),
+    editBranches: normalizePermissionFlag(payloadPermissions?.editBranches, true),
+    hideBranches: normalizePermissionFlag(payloadPermissions?.hideBranches, true)
+  };
+}
+
+function hasEntityPermission(user, permissionKey) {
+  return buildUserPermissions(user)[permissionKey] !== false;
+}
+
+function buildVisitId(id) {
+  return `VIS-${String(id || "").padStart(6, "0")}`;
 }
 
 async function refreshMeetingTypesCache() {
@@ -625,6 +683,7 @@ function validateUserPayload(payload, { requirePassword = true } = {}) {
   const password = String(payload?.password || "");
   const role = String(payload?.role || "").trim();
   const bitrixUserId = String(payload?.bitrixUserId || "").trim();
+  const permissions = normalizeUserPermissions(payload?.permissions);
 
   if (!name) errors.push("El nombre es obligatorio");
   if (!email || !email.includes("@")) errors.push("El email es inválido");
@@ -636,7 +695,7 @@ function validateUserPayload(payload, { requirePassword = true } = {}) {
 
   return {
     errors,
-    values: { name, email, password, role, bitrixUserId }
+    values: { name, email, password, role, bitrixUserId, permissions }
   };
 }
 
@@ -690,40 +749,47 @@ async function getSessionUser(req) {
   return getUserById(req.session.userId);
 }
 
-async function requireClientAccess(req, res, next) {
-  const user = await getSessionUser(req);
+function requireClientAccess(permissionKey = null) {
+  return asyncHandler(async (req, res, next) => {
+    const user = await getSessionUser(req);
 
-  if (!user) {
-    req.session.destroy(() => {});
-    res.status(401).json({ error: "Sesión inválida" });
-    return;
-  }
+    if (!user) {
+      req.session.destroy(() => {});
+      res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
 
-  const clientId = Number(req.params.id);
-  if (!Number.isInteger(clientId) || clientId <= 0) {
-    res.status(400).json({ error: "Cliente inválido" });
-    return;
-  }
+    const clientId = Number(req.params.id);
+    if (!Number.isInteger(clientId) || clientId <= 0) {
+      res.status(400).json({ error: "Cliente inválido" });
+      return;
+    }
 
-  const clientResult = await query("SELECT id, executive_user_id, is_hidden FROM clients WHERE id = $1", [clientId]);
-  const client = clientResult.rows[0];
+    const clientResult = await query("SELECT id, executive_user_id, is_hidden FROM clients WHERE id = $1", [clientId]);
+    const client = clientResult.rows[0];
 
-  if (!client || client.is_hidden) {
-    res.status(404).json({ error: "Cliente no encontrado" });
-    return;
-  }
+    if (!client || client.is_hidden) {
+      res.status(404).json({ error: "Cliente no encontrado" });
+      return;
+    }
 
-  if (isExecutiveScopedUser(user) && Number(client.executive_user_id) !== Number(user.id)) {
-    res.status(403).json({ error: "No tenés permisos para acceder a esta compañía" });
-    return;
-  }
+    if (isExecutiveScopedUser(user) && Number(client.executive_user_id) !== Number(user.id)) {
+      res.status(403).json({ error: "No tenés permisos para acceder a esta compañía" });
+      return;
+    }
 
-  req.authUser = sanitizeUser(user);
-  req.accessClient = {
-    id: client.id,
-    executiveUserId: client.executive_user_id
-  };
-  next();
+    if (permissionKey && !hasEntityPermission(user, permissionKey)) {
+      res.status(403).json({ error: ENTITY_PERMISSION_ERROR_MESSAGES[permissionKey] || "No tenés permisos para esta acción" });
+      return;
+    }
+
+    req.authUser = sanitizeUser(user);
+    req.accessClient = {
+      id: client.id,
+      executiveUserId: client.executive_user_id
+    };
+    next();
+  });
 }
 
 async function requireOpportunityAccess(req, res, next) {
@@ -860,6 +926,7 @@ function toBranchObject(row) {
     clientId: row.client_id,
     name: row.name,
     bitrixCompanyId: row.bitrix_company_id || "",
+    manualBranchId: row.manual_branch_id || "",
     sector: row.sector,
     manager: row.manager,
     executiveUserId: row.parent_executive_user_id,
@@ -919,6 +986,10 @@ function buildClientSelectQuery(whereClause = "", orderClause = "ORDER BY client
 }
 
 function buildBranchSelectQuery(whereClause = "", orderClause = "ORDER BY client_branches.id ASC") {
+  const effectiveWhere = mergeWhereClause(
+    "parent_client.is_hidden = FALSE AND COALESCE(client_branches.is_hidden, FALSE) = FALSE",
+    whereClause
+  );
   return `
     SELECT
       client_branches.*,
@@ -934,7 +1005,7 @@ function buildBranchSelectQuery(whereClause = "", orderClause = "ORDER BY client
     LEFT JOIN users AS supervisor_ifci ON supervisor_ifci.id = client_branches.supervisor_ifci_user_id
     LEFT JOIN users AS supervisor_ext ON supervisor_ext.id = client_branches.supervisor_ext_user_id
     LEFT JOIN users AS supervisor_works ON supervisor_works.id = client_branches.supervisor_works_user_id
-    ${whereClause}
+    ${effectiveWhere}
     ${orderClause}
   `;
 }
@@ -1033,13 +1104,34 @@ async function createClientRecord(payload) {
 
 async function createUserRecord(payload) {
   const { values } = validateUserPayload(payload, { requirePassword: true });
+  const permissions = values.permissions;
   const result = await query(
     `
-    INSERT INTO users (name, email, password_hash, role, bitrix_user_id)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, name, email, role, bitrix_user_id, created_at
+    INSERT INTO users (
+      name, email, password_hash, role, bitrix_user_id,
+      can_create_clients, can_edit_clients, can_hide_clients,
+      can_create_branches, can_edit_branches, can_hide_branches
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    RETURNING
+      id, name, email, role, bitrix_user_id,
+      can_create_clients, can_edit_clients, can_hide_clients,
+      can_create_branches, can_edit_branches, can_hide_branches,
+      created_at
     `,
-    [values.name, values.email, hashPassword(values.password), values.role, values.bitrixUserId]
+    [
+      values.name,
+      values.email,
+      hashPassword(values.password),
+      values.role,
+      values.bitrixUserId,
+      permissions.createClients,
+      permissions.editClients,
+      permissions.hideClients,
+      permissions.createBranches,
+      permissions.editBranches,
+      permissions.hideBranches
+    ]
   );
 
   return {
@@ -1088,7 +1180,11 @@ async function getContactRoleOptionByName(name) {
 async function getUserById(userId) {
   const { rows } = await query(
     `
-    SELECT id, name, email, role, bitrix_user_id, created_at
+    SELECT
+      id, name, email, role, bitrix_user_id,
+      can_create_clients, can_edit_clients, can_hide_clients,
+      can_create_branches, can_edit_branches, can_hide_branches,
+      created_at
     FROM users
     WHERE id = $1
     `,
@@ -1215,7 +1311,9 @@ async function getAutomaticMeetingEntityContext(db, entityType, entityId) {
       SELECT client_branches.id, client_branches.client_id, clients.executive_user_id
       FROM client_branches
       INNER JOIN clients ON clients.id = client_branches.client_id
-      WHERE client_branches.id = $1 AND clients.is_hidden = FALSE
+      WHERE client_branches.id = $1
+        AND clients.is_hidden = FALSE
+        AND COALESCE(client_branches.is_hidden, FALSE) = FALSE
       `,
       [entityId]
     );
@@ -1432,6 +1530,7 @@ async function withBillingRank(client) {
 function toMeetingObject(row) {
   return {
     id: row.id,
+    visitId: row.visit_id || buildVisitId(row.id),
     clientId: row.client_id,
     clientName: row.client_name || "",
     branchId: row.branch_id,
@@ -1802,6 +1901,7 @@ async function fetchVisits(filters = {}) {
       clients.executive_user_id AS executive_user_id,
       executive_user.name AS executive_name,
       client_branches.name AS branch_name,
+      client_branches.manual_branch_id AS branch_manual_id,
       COALESCE(branch_supervisor_ifci.name, client_supervisor_ifci.name) AS supervisor_ifci_name,
       COALESCE(branch_supervisor_ext.name, client_supervisor_ext.name) AS supervisor_ext_name,
       COALESCE(branch_supervisor_works.name, client_supervisor_works.name) AS supervisor_works_name
@@ -1825,6 +1925,7 @@ async function fetchVisits(filters = {}) {
     ...toMeetingObject(row),
     clientName: row.client_name,
     branchName: row.branch_name,
+    manualBranchId: row.branch_manual_id || "",
     scopeLabel: row.branch_name ? `${row.client_name} · ${row.branch_name}` : `${row.client_name} · Casa matriz`,
     kindLabel: getMeetingLabel(row.kind),
     color: getMeetingColor(row.kind),
@@ -2156,7 +2257,10 @@ async function validateOpportunityPayload(payload, clientId) {
 
   const branchId = payload?.branchId ? Number(payload.branchId) : null;
   if (branchId) {
-    const branchResult = await query("SELECT id FROM client_branches WHERE id = $1 AND client_id = $2", [branchId, clientId]);
+    const branchResult = await query(
+      "SELECT id FROM client_branches WHERE id = $1 AND client_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE",
+      [branchId, clientId]
+    );
     if (!branchResult.rows[0]) {
       errors.push("La sucursal seleccionada no pertenece a esta compañía");
     }
@@ -2450,7 +2554,17 @@ app.get(
       return;
     }
 
-    const { rows } = await query("SELECT id, name, email, role FROM users WHERE id = $1", [req.session.userId]);
+    const { rows } = await query(
+      `
+      SELECT
+        id, name, email, role, bitrix_user_id,
+        can_create_clients, can_edit_clients, can_hide_clients,
+        can_create_branches, can_edit_branches, can_hide_branches
+      FROM users
+      WHERE id = $1
+      `,
+      [req.session.userId]
+    );
     const user = rows[0];
 
     if (!user) {
@@ -3721,7 +3835,11 @@ app.get(
   asyncHandler(async (_req, res) => {
     const { rows } = await query(
       `
-      SELECT id, name, email, role, bitrix_user_id, created_at
+      SELECT
+        id, name, email, role, bitrix_user_id,
+        can_create_clients, can_edit_clients, can_hide_clients,
+        can_create_branches, can_edit_branches, can_hide_branches,
+        created_at
       FROM users
       ORDER BY name ASC, id ASC
       `
@@ -3799,8 +3917,30 @@ app.patch(
       return;
     }
 
-    const updateFields = ["name = $1", "email = $2", "role = $3", "bitrix_user_id = $4"];
-    const params = [values.name, values.email, values.role, values.bitrixUserId];
+    const updateFields = [
+      "name = $1",
+      "email = $2",
+      "role = $3",
+      "bitrix_user_id = $4",
+      "can_create_clients = $5",
+      "can_edit_clients = $6",
+      "can_hide_clients = $7",
+      "can_create_branches = $8",
+      "can_edit_branches = $9",
+      "can_hide_branches = $10"
+    ];
+    const params = [
+      values.name,
+      values.email,
+      values.role,
+      values.bitrixUserId,
+      values.permissions.createClients,
+      values.permissions.editClients,
+      values.permissions.hideClients,
+      values.permissions.createBranches,
+      values.permissions.editBranches,
+      values.permissions.hideBranches
+    ];
 
     if (values.password) {
       updateFields.push(`password_hash = $${params.length + 1}`);
@@ -3816,7 +3956,11 @@ app.patch(
         UPDATE users
         SET ${updateFields.join(", ")}
         WHERE id = $${params.length}
-        RETURNING id, name, email, role, bitrix_user_id, created_at
+        RETURNING
+          id, name, email, role, bitrix_user_id,
+          can_create_clients, can_edit_clients, can_hide_clients,
+          can_create_branches, can_edit_branches, can_hide_branches,
+          created_at
         `,
         params
       );
@@ -4152,9 +4296,13 @@ app.get(
       scopedExecutiveUserId: isExecutiveScopedUser(currentUser) ? Number(currentUser.id) : null
     });
     const rows = visits.map((visit) => ({
+      "ID cliente": visit.clientId || "",
+      "ID sucursal": visit.manualBranchId || "",
+      "ID visita": visit.visitId || "",
       Fecha: visit.scheduledFor,
       Cliente: visit.clientName,
       Alcance: visit.branchName || "Casa matriz",
+      "Motivo de la reunion": visit.subject || "",
       Tipo: visit.kindLabel || visit.kind,
       Modalidad: visit.modality || "",
       Estado: visit.status,
@@ -4516,7 +4664,7 @@ app.patch(
 
 app.get(
   "/api/clients/:id",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const { rows } = await query(buildClientSelectQuery("WHERE clients.id = $1 AND clients.is_hidden = FALSE", ""), [Number(req.params.id)]);
     const row = rows[0];
@@ -4537,6 +4685,11 @@ app.post(
     if (!currentUser) {
       req.session.destroy(() => {});
       res.status(401).json({ error: "Sesión inválida" });
+      return;
+    }
+
+    if (!hasEntityPermission(currentUser, "createClients")) {
+      res.status(403).json({ error: ENTITY_PERMISSION_ERROR_MESSAGES.createClients });
       return;
     }
 
@@ -4578,7 +4731,7 @@ app.post(
 
 app.patch(
   "/api/clients/:id",
-  requireClientAccess,
+  requireClientAccess("editClients"),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id, billing_2025 FROM clients WHERE id = $1", [clientId]);
@@ -4717,7 +4870,7 @@ app.patch(
 
 app.patch(
   "/api/clients/:id/hide",
-  requireClientAccess,
+  requireClientAccess("hideClients"),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id, name FROM clients WHERE id = $1 AND is_hidden = FALSE", [clientId]);
@@ -4750,7 +4903,7 @@ app.patch(
 
 app.post(
   "/api/clients/:id/branches",
-  requireClientAccess,
+  requireClientAccess("createBranches"),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1", [clientId]);
@@ -4773,7 +4926,7 @@ app.post(
       return;
     }
 
-    const { name, sector, risk, segment, bitrixCompanyId, services, supervisors, notes } = payload;
+    const { name, sector, risk, segment, bitrixCompanyId, manualBranchId, services, supervisors, notes } = payload;
     const parentClientResult = await query("SELECT manager, billing_2025, executive_user_id FROM clients WHERE id = $1", [clientId]);
     const executiveName = parentClientResult.rows[0]?.manager || "";
     const parentBilling = Number(parentClientResult.rows[0]?.billing_2025 || 0);
@@ -4786,10 +4939,10 @@ app.post(
       `
       INSERT INTO client_branches (
         client_id, name, billing_2025, sector, manager, executive_user_id, risk, segment,
-        bitrix_company_id, service_fixed_fire, service_extinguishers, service_works, notes,
+        bitrix_company_id, manual_branch_id, service_fixed_fire, service_extinguishers, service_works, notes,
         supervisor_ifci_user_id, supervisor_ext_user_id, supervisor_works_user_id,
         created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
       RETURNING id
       `,
       [
@@ -4802,6 +4955,7 @@ app.post(
         risk,
         segment,
         String(bitrixCompanyId || "").trim(),
+        String(manualBranchId || "").trim(),
         services.fixedFire,
         services.extinguishers,
         services.works,
@@ -4835,11 +4989,14 @@ app.post(
 
 app.patch(
   "/api/clients/:id/branches/:branchId",
-  requireClientAccess,
+  requireClientAccess("editBranches"),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const branchId = Number(req.params.branchId);
-    const existingBranchResult = await query("SELECT id FROM client_branches WHERE id = $1 AND client_id = $2", [branchId, clientId]);
+    const existingBranchResult = await query(
+      "SELECT id FROM client_branches WHERE id = $1 AND client_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE",
+      [branchId, clientId]
+    );
 
     if (!existingBranchResult.rows[0]) {
       res.status(404).json({ error: "Sucursal no encontrada" });
@@ -4859,7 +5016,7 @@ app.patch(
       return;
     }
 
-    const { name, sector, risk, segment, bitrixCompanyId, services, supervisors, notes } = payload;
+    const { name, sector, risk, segment, bitrixCompanyId, manualBranchId, services, supervisors, notes } = payload;
     const parentClientResult = await query("SELECT manager, billing_2025, executive_user_id FROM clients WHERE id = $1", [clientId]);
     const executiveName = parentClientResult.rows[0]?.manager || "";
     const parentBilling = Number(parentClientResult.rows[0]?.billing_2025 || 0);
@@ -4880,15 +5037,16 @@ app.patch(
         risk = $6,
         segment = $7,
         bitrix_company_id = $8,
-        service_fixed_fire = $9,
-        service_extinguishers = $10,
-        service_works = $11,
-        notes = $12,
-        supervisor_ifci_user_id = $13,
-        supervisor_ext_user_id = $14,
-        supervisor_works_user_id = $15,
+        manual_branch_id = $9,
+        service_fixed_fire = $10,
+        service_extinguishers = $11,
+        service_works = $12,
+        notes = $13,
+        supervisor_ifci_user_id = $14,
+        supervisor_ext_user_id = $15,
+        supervisor_works_user_id = $16,
         updated_at = NOW()
-      WHERE id = $16 AND client_id = $17
+      WHERE id = $17 AND client_id = $18
       RETURNING id
       `,
       [
@@ -4900,6 +5058,7 @@ app.patch(
         risk,
         segment,
         String(bitrixCompanyId || "").trim(),
+        String(manualBranchId || "").trim(),
         services.fixedFire,
         services.extinguishers,
         services.works,
@@ -4944,9 +5103,54 @@ app.patch(
   })
 );
 
+app.patch(
+  "/api/clients/:id/branches/:branchId/hide",
+  requireClientAccess("hideBranches"),
+  asyncHandler(async (req, res) => {
+    const clientId = Number(req.params.id);
+    const branchId = Number(req.params.branchId);
+    const existingBranchResult = await query(
+      `
+      SELECT id, name
+      FROM client_branches
+      WHERE id = $1
+        AND client_id = $2
+        AND COALESCE(is_hidden, FALSE) = FALSE
+      `,
+      [branchId, clientId]
+    );
+    const branch = existingBranchResult.rows[0];
+
+    if (!branch) {
+      res.status(404).json({ error: "Sucursal no encontrada" });
+      return;
+    }
+
+    await query(
+      `
+      UPDATE client_branches
+      SET is_hidden = TRUE, updated_at = NOW()
+      WHERE id = $1 AND client_id = $2
+      `,
+      [branchId, clientId]
+    );
+
+    await logAuditEvent({
+      req,
+      action: "branch.hide",
+      entityType: "branch",
+      entityId: branchId,
+      entityName: branch.name,
+      details: { clientId }
+    });
+
+    res.json({ ok: true });
+  })
+);
+
 app.post(
   "/api/clients/:id/opportunities",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1 AND is_hidden = FALSE", [clientId]);
@@ -4999,7 +5203,7 @@ app.post(
 
 app.patch(
   "/api/clients/:id/opportunities/:opportunityId",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const opportunityId = Number(req.params.opportunityId);
@@ -5179,7 +5383,7 @@ app.patch(
 
 app.post(
   "/api/clients/:id/meetings",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const existingClientResult = await query("SELECT id FROM clients WHERE id = $1", [clientId]);
@@ -5197,7 +5401,10 @@ app.post(
 
     const branchId = payload.branchId ? Number(payload.branchId) : null;
     if (branchId) {
-      const branchResult = await query("SELECT id FROM client_branches WHERE id = $1 AND client_id = $2", [branchId, clientId]);
+      const branchResult = await query(
+        "SELECT id FROM client_branches WHERE id = $1 AND client_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE",
+        [branchId, clientId]
+      );
       if (!branchResult.rows[0]) {
         res.status(400).json({ error: "La sucursal seleccionada no pertenece a esta compañía" });
         return;
@@ -5235,7 +5442,7 @@ app.post(
           active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
           complaint_bitrix_responsible_id, complaint_bitrix_task_id, created_by, status, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW())
-        RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+        RETURNING id, visit_id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
                   active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
                   complaint_bitrix_responsible_id, complaint_bitrix_task_id,
@@ -5290,7 +5497,7 @@ app.post(
 
 app.patch(
   "/api/clients/:id/meetings/:meetingId",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const meetingId = Number(req.params.meetingId);
@@ -5313,7 +5520,10 @@ app.patch(
 
     const branchId = payload.branchId ? Number(payload.branchId) : null;
     if (branchId) {
-      const branchResult = await query("SELECT id FROM client_branches WHERE id = $1 AND client_id = $2", [branchId, clientId]);
+      const branchResult = await query(
+        "SELECT id FROM client_branches WHERE id = $1 AND client_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE",
+        [branchId, clientId]
+      );
       if (!branchResult.rows[0]) {
         res.status(400).json({ error: "La sucursal seleccionada no pertenece a esta compañía" });
         return;
@@ -5382,7 +5592,7 @@ app.patch(
           status = $24,
           updated_at = NOW()
         WHERE id = $25 AND client_id = $26
-        RETURNING id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
+        RETURNING id, visit_id, client_id, branch_id, opportunity_id, kind, subject, objective, scheduled_for, participants, participant_user_ids, contact_name, contact_role,
                   modality, next_meeting_date, follow_up_from_meeting_id, minutes, findings,
                   active_negotiations_status, opportunities, substitute_recovery, global_contacts, service_health_status, service_status,
                   complaint_bitrix_responsible_id, complaint_bitrix_task_id,
@@ -5437,7 +5647,7 @@ app.patch(
 
 app.delete(
   "/api/clients/:id/meetings/:meetingId",
-  requireClientAccess,
+  requireClientAccess(),
   asyncHandler(async (req, res) => {
     const clientId = Number(req.params.id);
     const meetingId = Number(req.params.meetingId);

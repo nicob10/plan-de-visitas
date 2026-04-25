@@ -225,3 +225,37 @@ curl -I https://visitasms.online
   - ruta de visitas con nodos
   - calendario/check de cumplimiento
 - Se conectan los íconos en el `head` del HTML con soporte para favicon, Apple touch icon y manifest web app.
+
+### 2026-04-24
+
+- Se agrega `ID_visita` automático a todas las reuniones:
+  - nuevo campo `visit_id` en `meetings`
+  - migración que completa reuniones existentes con formato `VIS-000001`
+  - trigger para que toda reunión nueva, manual o automática, reciba su identificador sin depender del frontend
+- Se suma `ID_sucursal` manual para sucursales:
+  - nuevo campo `manual_branch_id` en `client_branches`
+  - pensado para sucursales que no pueden mapearse 1:1 con Bitrix
+  - visible y editable desde la ficha de sucursal
+- Se incorpora control fino de permisos por usuario sobre compañías y sucursales:
+  - crear compañías
+  - editar compañías
+  - ocultar compañías
+  - crear sucursales
+  - editar sucursales
+  - ocultar sucursales
+- Los permisos se administran desde `Configuración > Gestión de usuarios`:
+  - se agregan checkboxes en la edición/alta de usuarios
+  - la tabla ahora muestra un resumen legible de permisos por usuario
+- Los permisos impactan tanto en backend como en frontend:
+  - el servidor valida cada acción sensible
+  - la UI oculta botones o accesos cuando el usuario no tiene permiso
+- Se agrega ocultado seguro de sucursales:
+  - nuevo flag `is_hidden` en `client_branches`
+  - evita borrado destructivo y preserva historial asociado
+  - el botón de ocultar en la edición ahora sirve también para sucursales
+- La vista de reuniones y detalle muestra `ID visita` para que el identificador sea visible en operación diaria.
+- La exportación Excel de visitas suma nuevos datos operativos:
+  - `ID cliente`
+  - `ID sucursal` (tomando el `ID_sucursal` manual de la sucursal cuando existe)
+  - `ID visita`
+  - `Motivo de la reunion`
